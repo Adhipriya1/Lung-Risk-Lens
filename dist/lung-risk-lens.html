@@ -1,0 +1,1911 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lung Risk Lens</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: sticky app bar with three views. Instrument-panel feel: cool slate surfaces, teal UI accent; orange/blue are reserved for the outcome (lung cancer / no lung cancer). */
+:root {
+  --bg: #F1F5F6;
+  --glass: rgba(241, 245, 246, .88);
+  --surface: #FFFFFF;
+  --surface2: #F5F8F9;
+  --ink: #12262D;
+  --ink2: #47606A;
+  --muted: #6D848C;
+  --line: #DAE3E6;
+  --accent: #0E6A78;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E1F0F2;
+  --pos: #C4501B;
+  --neg: #2F7FB5;
+  --low: #23805A;
+  --mod: #A86F00;
+  --high: #C0392B;
+  --low-soft: #E3F3EB;
+  --mod-soft: #FBF0D9;
+  --high-soft: #FBE6E3;
+  --m1: #0E6A78;
+  --m2: #7A5BB5;
+  --m3: #B5427F;
+  --on-strong: #FFFFFF;
+  --shadow: 0 1px 2px rgba(18, 38, 45, .05), 0 6px 20px rgba(18, 38, 45, .05);
+  --f-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1518; --glass: rgba(13, 21, 24, .88); --surface: #141F23; --surface2: #182529; --ink: #E7EFF1; --ink2: #A3B7BD; --muted: #7F949B;
+    --line: #26363B; --accent: #54BCCB; --accent-ink: #072025; --accent-soft: #17323A;
+    --pos: #F08A57; --neg: #6AADDB; --low: #4CB783; --mod: #E0A93B; --high: #F0705F;
+    --low-soft: #15302A; --mod-soft: #33290F; --high-soft: #3A1D1A;
+    --m1: #54BCCB; --m2: #B49CE6; --m3: #E27BAE; --on-strong: #0D1518;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1518; --glass: rgba(13, 21, 24, .88); --surface: #141F23; --surface2: #182529; --ink: #E7EFF1; --ink2: #A3B7BD; --muted: #7F949B;
+  --line: #26363B; --accent: #54BCCB; --accent-ink: #072025; --accent-soft: #17323A;
+  --pos: #F08A57; --neg: #6AADDB; --low: #4CB783; --mod: #E0A93B; --high: #F0705F;
+  --low-soft: #15302A; --mod-soft: #33290F; --high-soft: #3A1D1A;
+  --m1: #54BCCB; --m2: #B49CE6; --m3: #E27BAE; --on-strong: #0D1518;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 15px/1.5 var(--f-body);
+  padding-block: 0 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.app { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; position: relative; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-size: 24px; line-height: 1.2; font-weight: 650; letter-spacing: -.015em; }
+h2 { font-size: 15.5px; font-weight: 650; letter-spacing: -.005em; display: flex; align-items: center; gap: 10px; }
+h3 { font-size: 14px; font-weight: 650; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: .92em; }
+.sub { color: var(--ink2); font-size: 13.5px; margin-top: 4px; max-width: 66ch; text-wrap: pretty; }
+.hint { color: var(--muted); font-size: 12.5px; }
+.note { padding: 0 4px; }
+.eyebrow { font: 500 11px/1 var(--f-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- app bar ---------- */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; padding: 12px 0; background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+.lungs { transform-origin: 50% 70%; animation: breathe 4.2s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+.tabs { position: relative; display: flex; gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tabs button { position: relative; z-index: 1; border: 0; background: transparent; padding: 8px 16px; border-radius: 8px; font-weight: 600; color: var(--ink2); cursor: pointer; transition: color .2s; }
+.tabs button[aria-selected="true"] { color: var(--accent-ink); }
+.tab-ind { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: 80px; border-radius: 8px; background: var(--accent); transition: left .3s cubic-bezier(.3, 1, .4, 1), width .3s cubic-bezier(.3, 1, .4, 1); }
+.status { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); font: 500 12px var(--f-mono); color: var(--ink2); white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.live .dot { background: var(--low); animation: pulse 2.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--low) 55%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+.spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: rot .8s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 13.5px; transition: border-color .15s, transform .15s, background .15s; }
+.btn:hover { border-color: var(--accent); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { padding: 6px 11px; font-size: 12.5px; }
+.btn.icon { padding: 8px 10px; display: inline-flex; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); animation: rise .3s both; }
+.panel-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.panel-grid .k { display: block; font-size: 12px; color: var(--muted); }
+.panel-grid .v { font-size: 15px; }
+.panel-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.panel-add { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.panel select { padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); }
+.check-line { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.error { color: var(--high); font-size: 13px; background: var(--high-soft); padding: 8px 10px; border-radius: 8px; }
+body.drop-on .app { outline: 2px dashed var(--accent); outline-offset: 6px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; min-width: 0; box-shadow: var(--shadow); }
+.view:not([hidden]) .card, .apage:not([hidden]) .card, .view:not([hidden]) .kpi { animation: rise .55s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--d, 0) * 60ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- risk check ---------- */
+.check-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.form { display: flex; flex-direction: column; gap: 14px; }
+.intro { display: flex; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; align-items: flex-end; padding: 4px 2px 2px; }
+.presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.step { display: flex; flex-direction: column; gap: 12px; }
+.num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font: 600 12px var(--f-mono); font-style: normal; }
+.basics { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+.field { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.field > label, .field > legend { font: 500 11px/1 var(--f-mono); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 0; }
+.age-ctl { display: flex; align-items: center; gap: 12px; }
+.age-ctl input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 28px; }
+.age-ctl input[type=number] { width: 76px; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font: 500 16px var(--f-mono); }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface2); }
+.seg-item { position: relative; cursor: pointer; }
+.seg-item input { position: absolute; opacity: 0; inset: 0; }
+.seg-item span, .seg button { display: block; text-align: center; padding: 10px 10px; font-weight: 600; color: var(--ink2); transition: background .2s, color .2s; }
+.seg-item:has(input:checked) span { background: var(--accent); color: var(--accent-ink); }
+.seg-item:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.seg button { border: 0; background: transparent; cursor: pointer; }
+.seg button[aria-pressed="true"], .seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg.small button { padding: 6px 12px; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { position: relative; cursor: pointer; }
+.chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.chip span { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 8px 16px 8px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink2); font-weight: 550; font-size: 14.5px; user-select: none; transition: background .2s, border-color .2s, color .2s, transform .15s; }
+.chip span::before { content: ""; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--muted); flex: none; transition: all .2s; }
+.chip:hover span { border-color: var(--accent); }
+.chip:active span { transform: scale(.96); }
+.chip:has(input:checked) span { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
+.chip:has(input:checked) span::before { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 4.5px, transparent 5px); }
+.chip:has(input:focus-visible) span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.result { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 14px; }
+.result-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gauge { display: flex; justify-content: center; }
+.gauge svg { width: 100%; max-width: 300px; height: auto; }
+.tier { display: flex; justify-content: center; }
+.tier-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 99px; font-weight: 650; font-size: 14px; }
+.tier-pill.pop { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+.tier-pill.low { background: var(--low-soft); color: var(--low); }
+.tier-pill.mod { background: var(--mod-soft); color: var(--mod); }
+.tier-pill.high { background: var(--high-soft); color: var(--high); }
+@keyframes pop { from { transform: scale(.8); opacity: .4; } to { transform: none; opacity: 1; } }
+.advice { text-align: center; color: var(--ink2); font-size: 14px; max-width: 46ch; margin: 0 auto; text-wrap: pretty; }
+.percentile { text-align: center; font-size: 13.5px; color: var(--ink2); }
+.percentile b { font: 500 14px var(--f-mono); color: var(--ink); }
+.agree { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.agree .ag { background: var(--surface2); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; border-left: 3px solid var(--muted); }
+.agree .ag.low { border-color: var(--low); } .agree .ag.mod { border-color: var(--mod); } .agree .ag.high { border-color: var(--high); }
+.agree .ag span { font-size: 11.5px; color: var(--ink2); }
+.agree .ag b { font: 500 18px var(--f-mono); }
+.agree .ag.wait b { color: var(--muted); font-size: 13px; }
+.agree .verdict { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink2); text-align: center; }
+.actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.pins { display: flex; flex-direction: column; gap: 6px; }
+.pin { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; background: var(--surface2); border-radius: 10px; padding: 7px 8px 7px 12px; font-size: 13px; animation: rise .35s both; }
+.pin .tag { font: 600 12px var(--f-mono); color: var(--accent); }
+.pin button.load { border: 0; background: none; text-align: left; cursor: pointer; padding: 0; color: var(--ink2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin b { font: 500 14px var(--f-mono); }
+.pin .d { font: 500 12px var(--f-mono); }
+.pin .d.up { color: var(--high); } .pin .d.dn { color: var(--low); }
+.pin .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; }
+.block { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.drivers { display: flex; flex-direction: column; gap: 7px; }
+.drv { display: grid; grid-template-columns: minmax(90px, 1.1fr) minmax(0, 1.6fr) 44px; align-items: center; gap: 10px; font-size: 13.5px; }
+.drv .bar { position: relative; height: 10px; background: var(--surface2); border-radius: 5px; }
+.drv .bar i { position: absolute; top: 0; bottom: 0; width: 0; border-radius: 5px; transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+.drv .bar i.up { left: 50%; background: var(--pos); border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.drv .bar i.dn { right: 50%; background: var(--neg); border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.drv .bar::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+.drv b { font: 500 12.5px var(--f-mono); text-align: right; }
+.empty { color: var(--muted); font-size: 13.5px; }
+.sim-dots { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.sim-dots i { width: 16px; height: 16px; border-radius: 50%; display: block; animation: pop .4s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--i) * 28ms); }
+.sim-dots i.y { background: var(--pos); } .sim-dots i.n { background: var(--neg); }
+.steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.steps li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; font-size: 13.5px; color: var(--ink2); }
+.steps li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 7px; justify-self: center; }
+.steps li b { color: var(--ink); font-weight: 600; }
+.disclaimer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+.minibar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: none; align-items: center; gap: 12px; padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0, 0, 0, .1); }
+.minibar > div { display: flex; flex-direction: column; gap: 2px; }
+.minibar b { font: 500 22px/1 var(--f-mono); }
+.minibar .btn { margin-left: auto; }
+
+/* ---------- analytics ---------- */
+.subbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap; }
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; }
+.subnav button { border: 1px solid var(--line); background: var(--surface); padding: 8px 16px; border-radius: 99px; font-weight: 600; cursor: pointer; color: var(--ink2); transition: all .2s; }
+.subnav button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.slicers { display: flex; gap: 14px; flex-wrap: wrap; }
+.slicer { display: flex; flex-direction: column; gap: 6px; }
+.filterbar { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; min-height: 30px; }
+.active-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fchip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; border-radius: 99px; background: var(--accent-soft); border: 1px solid var(--accent); font-size: 13px; font-weight: 600; animation: pop .3s both; }
+.fchip button { border: 0; background: var(--accent); color: var(--accent-ink); width: 20px; height: 20px; border-radius: 50%; cursor: pointer; line-height: 1; font-size: 13px; padding: 0; }
+.link-btn { border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 4px; font-size: 13px; }
+.apage { display: flex; flex-direction: column; gap: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; box-shadow: var(--shadow); }
+.kpi .n { font: 500 32px/1.1 var(--f-mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kpi .s { font-size: 12.5px; color: var(--ink2); }
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.insight { background: var(--accent-soft); border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; animation: rise .5s both; animation-delay: calc(var(--d, 0) * 70ms); }
+.insight .big { font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+.insight p { font-size: 13px; color: var(--ink2); }
+.a-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.span2 { grid-column: span 2; } .span3 { grid-column: span 3; }
+.a-grid .card { display: flex; flex-direction: column; gap: 4px; }
+.chart { width: 100%; margin-top: 10px; min-height: 40px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink2); margin-top: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.legend u { width: 18px; height: 0; border-top: 2.5px solid; display: inline-block; }
+.statrow { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.statrow div { display: flex; flex-direction: column; gap: 2px; }
+.statrow span { font-size: 12px; color: var(--muted); }
+.statrow b { font: 500 15px var(--f-mono); }
+.scale { display: flex; align-items: center; gap: 8px; font: 400 11px var(--f-mono); color: var(--muted); margin-top: 10px; }
+.scale i { flex: 1; max-width: 220px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--neg), var(--surface2), var(--pos)); }
+.ax { fill: var(--muted); font: 400 11px var(--f-mono); }
+.lb { fill: var(--ink2); font: 500 12.5px var(--f-body); }
+.lb.sel { fill: var(--ink); font-weight: 700; }
+.vl { fill: var(--ink); font: 500 11.5px var(--f-mono); }
+.gl { stroke: var(--line); stroke-width: 1; }
+.mk { cursor: pointer; transition: opacity .2s; }
+.mk.dim { opacity: .35; }
+.mk:hover .hit { fill: var(--accent-soft); }
+.nodata { color: var(--muted); font-size: 13.5px; padding: 24px 0; text-align: center; }
+.health { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.hitem { background: var(--surface2); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; }
+.hitem b { font: 500 20px var(--f-mono); }
+.hitem span { font-size: 12.5px; color: var(--ink2); }
+.hitem .tag { font: 600 11px var(--f-mono); color: var(--low); }
+.hitem .tag.warn { color: var(--mod); }
+.small-grid { display: grid; gap: 14px 16px; margin-top: 12px; }
+.small-grid .sm { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.small-grid .sm h4 { margin: 0; font-size: 13px; font-weight: 650; display: flex; justify-content: space-between; gap: 8px; }
+.small-grid .sm h4 span { font: 400 11.5px var(--f-mono); color: var(--muted); }
+
+/* entry animation hooks (added only on the first draw of a chart) */
+.a-grow { transform-box: fill-box; transform-origin: 50% 100%; animation: growY .75s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.a-growx { transform-box: fill-box; transform-origin: 0 50%; animation: growX .75s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 35ms); }
+.a-fade { animation: fadeIn .7s both; animation-delay: calc(var(--i, 0) * 40ms); }
+.a-pop { transform-box: fill-box; transform-origin: center; animation: pop .5s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--i, 0) * 40ms); }
+.a-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.3s ease-out .15s forwards; }
+.a-donut { animation: donutIn 1.1s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes growY { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes growX { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes donutIn { from { stroke-dasharray: 0 var(--c); } }
+
+.tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--bg); padding: 8px 11px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; max-width: 260px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); }
+.tip b { font-weight: 650; }
+.toasts { position: fixed; z-index: 60; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
+.toast { background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 550; box-shadow: 0 8px 24px rgba(0, 0, 0, .3); animation: toastIn .4s cubic-bezier(.3, 1.4, .5, 1) both, toastOut .4s ease 3.6s both; max-width: 340px; }
+@keyframes toastIn { from { transform: translateY(16px) scale(.95); opacity: 0; } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(8px); } }
+
+@media (max-width: 1000px) {
+  .check-grid { grid-template-columns: minmax(0, 1fr); }
+  .result { position: static; }
+  .a-grid { grid-template-columns: minmax(0, 1fr); }
+  .span2, .span3 { grid-column: auto; }
+  .minibar.on { display: flex; }
+  body.has-mini { padding-bottom: 96px; }
+}
+@media (max-width: 620px) {
+  .basics { grid-template-columns: minmax(0, 1fr); }
+  .card { padding: 16px; }
+  .status { margin-left: 0; width: 100%; }
+  .tabs { width: 100%; } .tabs button { flex: 1; padding: 8px 8px; }
+  .kpi .n { font-size: 26px; }
+  .agree .ag b { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .a-draw { stroke-dashoffset: 0; }
+}
+
+.a-grid > .card:nth-child(1), .step:nth-child(2) { --d: 0; }
+.a-grid > .card:nth-child(2), .step:nth-child(3) { --d: 1; }
+.a-grid > .card:nth-child(3), .step:nth-child(4) { --d: 2; }
+.a-grid > .card:nth-child(4) { --d: 3; }
+.a-grid > .card:nth-child(5) { --d: 4; }
+.a-grid > .card:nth-child(6) { --d: 5; }
+.result { --d: 2; }
+
+
+@media (max-width: 620px) {
+  .top { position: static; gap: 8px 8px; padding: 10px 0 4px; }
+  .status { display: contents; }
+  .brand { order: 1; }
+  #themeBtn { order: 2; margin-left: auto; }
+  #dataBtn { order: 3; }
+  .tabs { order: 4; flex: 1 1 100%; width: 100%; }
+  #livePill { order: 5; } #trainPill { order: 6; }
+  .pill { font-size: 11px; padding: 4px 9px; }
+}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="top">
+  <div class="brand">
+    <svg class="lungs" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M15 5v11c0 4-2 8-6 8-3 0-5-2-5-5 0-5 3-11 8-14z" fill="var(--accent)"/><path d="M17 5v11c0 4 2 8 6 8 3 0 5-2 5-5 0-5-3-11-8-14z" fill="var(--accent)" opacity=".55"/></svg>
+    <span>Lung Risk Lens</span>
+  </div>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Views">
+    <i class="tab-ind" id="tabInd"></i>
+    <button role="tab" id="tab-check" data-view="check" aria-selected="true">Risk check</button>
+    <button role="tab" id="tab-analytics" data-view="analytics" aria-selected="false">Analytics</button>
+  </nav>
+  <div class="status">
+    <span id="trainPill" class="pill" hidden><i class="spin"></i><span id="trainText">Training</span></span>
+    <span id="livePill" class="pill"><i class="dot"></i><span id="liveText">Loading…</span></span>
+    <button id="themeBtn" class="btn icon" aria-label="Switch light or dark theme" title="Switch theme">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7z" fill="currentColor"/></svg>
+    </button>
+    <button id="dataBtn" class="btn" aria-expanded="false" aria-controls="dataPanel">Data</button>
+  </div>
+</header>
+
+<div id="dataPanel" class="panel" hidden>
+  <div class="panel-row"><strong>Data source</strong><span id="dpSource" class="mono"></span></div>
+  <div class="panel-grid">
+    <div><span class="k">Records used</span><span id="dpRows" class="v mono"></span></div>
+    <div><span class="k">Duplicates found</span><span id="dpDupes" class="v mono"></span></div>
+    <div><span class="k">Added this session</span><span id="dpAdded" class="v mono">0</span></div>
+    <div><span class="k">Last refreshed</span><span id="dpTime" class="v mono"></span></div>
+  </div>
+  <label class="check-line" for="dedupe"><input type="checkbox" id="dedupe" checked> Remove exact duplicate rows</label>
+  <div class="panel-actions">
+    <input type="file" id="fileIn" accept=".csv,text/csv" hidden>
+    <button id="uploadBtn" class="btn primary">Load a CSV…</button>
+    <button id="copyCsv" class="btn">Copy dataset as CSV</button>
+    <span class="hint">Drop a file anywhere on the page, or replace <code>data/lung_cancer.csv</code> and everything refreshes within seconds.</span>
+  </div>
+  <div class="panel-add">
+    <strong>Add a record</strong>
+    <span class="hint">Uses the answers currently set in Risk check, plus the known outcome. Every chart and model updates straight away.</span>
+    <div class="panel-actions">
+      <select id="addOutcome" aria-label="Outcome of the new record"><option value="1">Lung cancer: yes</option><option value="0">Lung cancer: no</option></select>
+      <button id="addRec" class="btn primary">Add record</button>
+    </div>
+  </div>
+  <p id="dpError" class="error" hidden></p>
+  <p class="hint">Everything is calculated in your browser. No data is sent anywhere.</p>
+</div>
+
+<main>
+
+<!-- ============ RISK CHECK ============ -->
+<section id="view-check" class="view" aria-labelledby="tab-check">
+  <div class="check-grid">
+    <form id="form" class="form" autocomplete="off" onsubmit="return false">
+      <div class="intro">
+        <div>
+          <h1>Check a risk profile</h1>
+          <p class="sub" id="exampleNote">This is an example profile. Change any answer and the score updates instantly.</p>
+        </div>
+        <div class="presets" role="group" aria-label="Quick profiles">
+          <button type="button" class="btn small" id="presetLow">Low example</button>
+          <button type="button" class="btn small" id="presetHigh">High example</button>
+          <button type="button" class="btn small" id="presetClear">Clear all</button>
+        </div>
+      </div>
+
+      <section class="card step">
+        <h2><i class="num">1</i>About the person</h2>
+        <div class="basics">
+          <div class="field">
+            <label for="ageNum">Age</label>
+            <div class="age-ctl">
+              <input type="range" id="ageRange" min="18" max="90" step="1" value="62" aria-label="Age slider">
+              <input type="number" id="ageNum" min="18" max="100" value="62" inputmode="numeric">
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Sex</legend>
+            <div class="seg" id="sexSeg">
+              <label class="seg-item"><input type="radio" name="sex" id="sexF" value="0"><span>Female</span></label>
+              <label class="seg-item"><input type="radio" name="sex" id="sexM" value="1" checked><span>Male</span></label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <section class="card step">
+        <h2><i class="num">2</i>Habits and history</h2>
+        <p class="sub">Tap everything that applies.</p>
+        <div class="chips" id="chipsLife"></div>
+      </section>
+
+      <section class="card step">
+        <h2><i class="num">3</i>Current symptoms</h2>
+        <p class="sub">Tap any symptom the person has right now.</p>
+        <div class="chips" id="chipsSymp"></div>
+      </section>
+    </form>
+
+    <aside class="card result" id="resultCard" aria-live="polite">
+      <div class="result-head">
+        <span class="eyebrow">Risk score</span>
+      </div>
+      <div id="gauge" class="gauge"></div>
+      <div id="tier" class="tier"></div>
+      <p id="advice" class="advice"></p>
+      <div id="percentile" class="percentile"></div>
+      <div id="agree" class="agree"></div>
+
+      <div class="actions">
+        <button type="button" class="btn small" id="pinBtn">Pin to compare</button>
+        <button type="button" class="btn small" id="copyBtn">Copy summary</button>
+      </div>
+      <div id="pins" class="pins"></div>
+
+      <div class="block"><h3>What moves this score</h3><div id="drivers" class="drivers"></div></div>
+      <div class="block"><h3>Closest matches in the data</h3><div id="similar"></div></div>
+      <div class="block"><h3>Sensible next steps</h3><ul id="steps" class="steps"></ul></div>
+      <p class="disclaimer">A screening aid trained on a small survey dataset. It does not diagnose lung cancer. If you are worried about any symptom, talk to a doctor.</p>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ ANALYTICS ============ -->
+<section id="view-analytics" class="view" aria-labelledby="tab-analytics" hidden>
+  <div class="subbar">
+    <div class="subnav" id="subnav" role="tablist" aria-label="Report pages">
+      <button role="tab" data-page="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-page="patterns" aria-selected="false">Risk patterns</button>
+      <button role="tab" data-page="corr" aria-selected="false">Correlations</button>
+    </div>
+    <div class="slicers">
+      <div class="slicer"><span class="eyebrow">Sex</span>
+        <div class="seg small" id="slSex"><button type="button" data-v="">All</button><button type="button" data-v="0">Female</button><button type="button" data-v="1">Male</button></div></div>
+      <div class="slicer"><span class="eyebrow">Smoking</span>
+        <div class="seg small" id="slSmoke"><button type="button" data-v="">All</button><button type="button" data-v="1">Smokers</button><button type="button" data-v="0">Non-smokers</button></div></div>
+    </div>
+  </div>
+  <div class="filterbar"><span class="hint" id="filterHint">Click any bar, row or column to filter every chart. Click again to remove.</span><div id="activeFilters" class="active-filters"></div></div>
+
+  <div class="apage" id="ap-overview">
+    <div class="kpis" id="kpis"></div>
+    <div class="insights" id="insights"></div>
+    <div class="a-grid">
+      <section class="card"><h2>Outcome split</h2><p class="sub">Share of records with and without lung cancer.</p><div id="chOutcome" class="chart"></div></section>
+      <section class="card span2"><h2>Age distribution</h2><p class="sub">Five-year bins, split by outcome, with a smoothed curve.</p><div id="chHist" class="chart"></div><div id="histStats" class="statrow"></div></section>
+      <section class="card span2"><h2>Outcome by age band</h2><p class="sub">Percent above each column is the share with lung cancer.</p><div id="chAge" class="chart"></div></section>
+      <section class="card"><h2>By sex</h2><p class="sub">Share of records with lung cancer.</p><div id="chSex" class="chart"></div></section>
+      <section class="card span3"><h2>Dataset health</h2><p class="sub">Checks the notebook runs before any analysis.</p><div id="health"></div></section>
+    </div>
+  </div>
+
+  <div class="apage" id="ap-patterns" hidden>
+    <div class="a-grid">
+      <section class="card span2"><h2>Which factors separate positive cases</h2><p class="sub">Lung cancer rate when the factor is present versus absent. A longer line is a stronger signal.</p><div class="legend" id="lgFactor"></div><div id="chFactor" class="chart"></div></section>
+      <section class="card"><h2>Symptom burden</h2><p class="sub">Lung cancer rate by number of symptoms (out of 6).</p><div id="chBurden" class="chart"></div></section>
+      <section class="card span3"><h2>How common is each factor</h2><p class="sub">Share of records in view where the factor is present. Click a bar to filter.</p><div id="chPrev" class="chart"></div></section>
+    </div>
+  </div>
+
+  <div class="apage" id="ap-corr" hidden>
+    <div class="a-grid">
+      <section class="card span2"><h2>Correlation heatmap</h2><p class="sub">Pearson correlation between every pair of columns. Orange means they rise together, blue means they move apart.</p><div id="chHeat" class="chart"></div><div class="scale"><span>−1</span><i></i><span>+1</span></div></section>
+      <section class="card"><h2>Correlation with lung cancer</h2><p class="sub">Ranked by strength.</p><div id="chCorr" class="chart"></div></section>
+      <section class="card span3"><h2>Top signals, outcome by outcome</h2><p class="sub">For the nine columns most correlated with lung cancer: of the people who had it, and of those who did not, what share answered each way.</p><div class="legend" id="lgSmall"></div><div id="chSmall" class="chart"></div></section>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="minibar" id="minibar" hidden>
+  <div><span class="eyebrow">Score</span><b id="miniScore">–</b></div>
+  <span id="miniTier" class="tier-pill"></span>
+  <button type="button" class="btn small" id="miniGo">Details</button>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+</div>
+<script id="seed" type="text/plain">GENDER,AGE,SMOKING,YELLOW_FINGERS,ANXIETY,PEER_PRESSURE,CHRONIC DISEASE,FATIGUE ,ALLERGY ,WHEEZING,ALCOHOL CONSUMING,COUGHING,SHORTNESS OF BREATH,SWALLOWING DIFFICULTY,CHEST PAIN,LUNG_CANCER
+MALE,69,0,1,1,0,0,1,0,1,1,1,1,1,1,YES
+MALE,74,1,0,0,0,1,1,1,0,0,0,1,1,1,YES
+FEMALE,59,0,0,0,1,0,1,0,1,0,1,1,0,1,NO
+MALE,63,1,1,1,0,0,0,0,0,1,0,0,1,1,NO
+FEMALE,63,0,1,0,0,0,0,0,1,0,1,1,0,0,NO
+FEMALE,75,0,1,0,0,1,1,1,1,0,1,1,0,0,YES
+MALE,52,1,0,0,0,0,1,0,1,1,1,1,0,1,YES
+FEMALE,51,1,1,1,1,0,1,1,0,0,0,1,1,0,YES
+FEMALE,68,1,0,1,0,0,1,0,0,0,0,0,0,0,NO
+MALE,53,1,1,1,1,1,0,1,0,1,0,0,1,1,YES
+FEMALE,61,1,1,1,1,1,1,0,1,0,1,1,1,0,YES
+MALE,72,0,0,0,0,1,1,1,1,1,1,1,0,1,YES
+FEMALE,60,1,0,0,0,0,1,0,0,0,0,1,0,0,NO
+MALE,58,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,69,1,0,0,0,0,0,1,1,1,1,0,0,1,NO
+FEMALE,48,0,1,1,1,1,1,1,1,0,1,1,1,0,YES
+MALE,75,1,0,0,0,1,0,1,1,1,1,1,0,1,YES
+MALE,57,1,1,1,1,1,0,0,0,1,0,0,1,1,YES
+FEMALE,68,1,1,1,1,1,1,0,0,0,1,1,0,0,YES
+FEMALE,61,0,0,0,0,1,1,0,0,0,0,1,0,0,NO
+FEMALE,44,1,1,1,1,1,1,0,0,0,0,1,1,0,YES
+FEMALE,64,0,1,1,1,0,0,1,1,0,1,0,1,0,YES
+FEMALE,21,1,0,0,0,1,1,1,0,0,0,1,0,0,NO
+MALE,60,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,72,1,1,1,1,1,0,1,1,1,1,0,1,1,YES
+MALE,65,0,1,1,0,0,1,0,1,1,1,1,1,1,YES
+FEMALE,61,1,1,1,0,0,1,1,0,1,0,1,1,1,YES
+MALE,69,0,0,0,1,0,1,0,1,0,1,1,0,1,NO
+FEMALE,53,1,1,1,0,1,0,0,1,1,0,1,1,1,YES
+MALE,55,0,1,0,0,0,1,0,1,1,1,1,0,0,NO
+FEMALE,57,1,1,0,0,0,0,0,0,0,0,1,0,0,NO
+MALE,62,1,0,1,0,0,0,1,1,1,0,1,1,1,YES
+MALE,56,1,1,1,0,0,0,0,0,0,0,1,1,0,NO
+FEMALE,67,1,1,1,0,1,0,0,0,0,0,1,1,1,YES
+MALE,59,0,1,1,0,0,0,0,0,0,0,0,1,1,NO
+FEMALE,59,1,1,1,0,1,0,0,0,0,0,1,1,0,YES
+MALE,60,0,1,0,0,1,0,0,1,0,1,1,0,1,YES
+FEMALE,56,0,0,0,0,1,0,0,1,0,0,1,1,0,NO
+MALE,56,1,0,0,0,1,0,0,1,0,0,1,0,1,YES
+MALE,60,1,0,0,0,1,0,1,1,1,1,0,0,1,YES
+MALE,68,1,0,1,0,0,1,1,0,1,1,1,0,1,YES
+MALE,63,0,0,0,1,0,1,1,1,1,0,0,1,0,YES
+FEMALE,77,0,1,1,1,1,1,0,1,1,0,0,0,0,YES
+MALE,52,1,0,0,1,0,1,1,1,1,0,1,0,1,YES
+FEMALE,70,1,1,0,1,1,0,0,0,1,1,0,1,0,YES
+MALE,72,1,1,1,1,1,1,0,1,1,1,1,1,1,YES
+MALE,62,1,1,0,0,1,0,1,0,0,1,1,1,1,YES
+FEMALE,64,1,1,0,1,0,1,0,1,1,1,0,1,1,YES
+FEMALE,70,0,0,1,1,1,1,1,1,1,0,1,1,1,YES
+MALE,60,0,0,1,1,1,0,0,0,1,0,0,0,0,NO
+FEMALE,56,0,0,0,1,1,1,1,1,1,0,0,0,1,YES
+MALE,63,1,1,1,0,1,1,1,1,0,0,1,0,0,YES
+FEMALE,54,1,0,0,1,0,1,1,1,1,1,0,1,1,YES
+MALE,49,1,0,0,1,1,1,1,1,1,1,1,1,1,YES
+FEMALE,57,0,1,0,1,1,1,1,0,1,1,0,0,0,YES
+MALE,52,0,1,1,0,1,0,1,1,1,1,0,1,0,YES
+FEMALE,63,0,1,0,1,0,1,0,0,0,1,1,0,1,YES
+MALE,73,0,0,0,0,1,0,1,0,1,1,1,1,1,YES
+MALE,47,0,1,0,1,1,1,0,1,0,0,1,1,1,YES
+MALE,69,1,1,1,1,0,1,1,0,1,1,1,0,1,YES
+MALE,70,0,1,0,1,1,1,1,1,1,1,0,1,1,YES
+FEMALE,60,0,1,1,0,0,0,0,0,0,1,0,0,0,NO
+MALE,70,0,1,0,1,0,1,1,1,1,1,0,0,0,YES
+FEMALE,68,0,0,1,0,1,0,1,1,1,0,0,1,0,YES
+MALE,74,0,1,0,1,0,1,1,1,1,1,1,0,1,YES
+FEMALE,71,1,1,1,1,1,1,0,1,0,1,0,1,1,YES
+FEMALE,56,0,1,0,0,1,1,1,1,0,1,1,0,1,YES
+MALE,66,1,0,0,0,0,1,0,1,1,1,1,0,0,YES
+FEMALE,76,1,1,1,1,0,1,1,0,0,0,1,1,1,YES
+FEMALE,78,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,68,1,1,1,1,0,0,1,0,1,0,0,1,1,YES
+FEMALE,66,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,67,0,0,0,0,1,1,1,1,1,1,1,0,1,YES
+FEMALE,60,1,0,0,0,1,1,0,0,0,0,1,0,0,YES
+MALE,61,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,58,1,0,0,0,0,0,1,1,1,1,0,0,0,YES
+FEMALE,76,0,1,1,1,1,1,1,1,0,1,1,1,1,YES
+MALE,56,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,67,1,1,1,1,1,0,0,0,1,0,0,1,1,YES
+FEMALE,73,1,1,1,1,0,1,0,0,0,1,1,1,1,YES
+FEMALE,58,0,0,0,0,0,1,0,0,0,0,1,0,0,NO
+FEMALE,54,1,1,1,1,1,1,0,0,0,0,1,1,0,YES
+FEMALE,62,1,1,1,1,1,0,1,1,1,0,0,1,1,YES
+FEMALE,81,0,0,0,1,1,0,1,0,1,1,1,0,0,YES
+MALE,56,0,0,0,0,1,1,1,0,1,1,1,0,1,YES
+MALE,60,0,1,1,0,0,0,0,1,1,1,1,1,0,YES
+MALE,66,0,1,1,0,1,0,1,0,1,1,1,0,1,YES
+MALE,62,0,1,1,0,0,1,0,1,0,0,0,1,1,YES
+FEMALE,62,1,1,1,0,1,0,1,0,1,0,0,0,0,YES
+FEMALE,55,1,0,0,1,1,1,1,1,1,0,0,1,1,YES
+FEMALE,62,0,0,0,1,0,0,0,1,1,0,0,1,1,YES
+FEMALE,71,0,0,0,0,1,1,1,0,0,1,1,0,1,YES
+MALE,52,1,0,0,0,1,1,1,1,1,0,0,1,1,YES
+FEMALE,59,0,1,1,1,1,0,1,1,1,1,1,1,0,YES
+MALE,48,1,0,0,0,1,1,1,0,1,1,1,1,1,YES
+MALE,60,0,1,1,1,0,1,0,0,0,0,0,1,1,YES
+FEMALE,61,1,1,1,0,0,0,1,0,1,1,1,0,1,YES
+MALE,59,1,0,0,1,0,0,0,0,1,1,1,0,0,YES
+MALE,64,0,1,1,1,0,1,1,0,0,1,0,1,0,YES
+FEMALE,81,0,1,1,1,1,1,1,1,0,1,1,1,1,YES
+MALE,64,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,62,1,1,1,1,1,0,0,0,1,0,0,1,1,YES
+FEMALE,72,1,1,1,1,0,1,0,0,0,1,1,1,1,YES
+FEMALE,60,0,0,0,0,1,1,0,0,0,0,1,0,0,YES
+FEMALE,61,1,1,1,1,1,1,0,0,0,0,1,1,0,YES
+FEMALE,60,1,1,1,1,1,0,1,1,1,0,0,1,1,YES
+FEMALE,49,0,0,0,1,1,0,1,0,1,1,1,0,0,YES
+MALE,53,0,0,0,0,1,1,1,0,1,0,1,0,1,YES
+MALE,58,0,1,1,0,0,1,0,1,1,1,1,1,1,YES
+MALE,61,1,1,1,0,0,1,1,0,1,0,1,1,1,YES
+FEMALE,68,0,0,0,1,0,1,0,1,0,1,1,0,1,YES
+MALE,60,1,1,1,0,0,0,0,0,1,0,0,1,1,YES
+FEMALE,72,0,1,0,0,0,1,0,1,1,1,1,0,0,YES
+FEMALE,72,0,1,0,0,1,1,1,1,0,1,1,0,0,YES
+MALE,57,1,0,0,0,0,1,0,1,1,1,1,0,1,YES
+FEMALE,54,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+FEMALE,56,0,1,1,1,0,0,1,0,1,0,0,1,1,YES
+MALE,77,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,64,0,0,0,0,1,1,1,1,1,1,1,0,1,YES
+MALE,57,1,0,1,0,1,1,0,0,0,0,1,0,0,YES
+FEMALE,66,1,1,1,0,1,1,1,1,1,1,1,0,0,YES
+MALE,70,1,0,0,0,0,0,1,0,1,1,0,0,1,YES
+FEMALE,53,0,1,1,1,1,1,1,0,0,1,1,0,0,YES
+MALE,51,1,0,0,0,0,1,0,1,1,1,1,0,1,YES
+MALE,58,1,1,1,1,1,0,0,0,1,0,0,1,1,YES
+FEMALE,58,1,1,1,1,0,1,0,0,0,1,1,1,0,YES
+FEMALE,63,0,0,0,0,1,1,0,0,0,0,1,0,0,NO
+FEMALE,51,1,1,1,1,0,1,0,0,0,0,1,1,0,YES
+FEMALE,61,0,1,1,1,0,0,1,1,0,1,0,1,0,YES
+FEMALE,61,1,0,0,0,1,1,1,0,0,0,1,0,0,YES
+MALE,76,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,71,1,1,1,0,1,0,1,1,1,1,0,1,1,YES
+MALE,69,0,0,1,0,0,1,0,1,1,1,1,1,0,YES
+FEMALE,56,1,1,1,0,0,1,1,0,0,0,1,0,1,YES
+MALE,67,0,0,0,1,0,1,0,1,0,1,1,0,1,YES
+FEMALE,54,1,1,1,0,1,0,0,1,1,0,1,1,1,YES
+MALE,63,0,1,0,0,0,1,0,1,1,1,1,0,0,YES
+FEMALE,47,1,1,0,1,1,1,1,1,0,1,1,0,0,YES
+MALE,62,1,0,1,0,0,1,0,1,1,1,1,0,1,YES
+MALE,65,1,1,1,1,0,1,1,0,0,0,1,1,0,YES
+FEMALE,63,1,1,1,1,1,1,1,1,0,1,1,1,1,YES
+MALE,64,0,1,1,1,0,0,1,0,1,0,0,1,1,YES
+FEMALE,65,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,51,0,1,0,0,1,1,1,1,1,1,1,0,1,YES
+FEMALE,56,0,0,0,1,1,1,0,0,1,1,1,1,0,YES
+MALE,70,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,58,1,0,0,0,0,0,1,1,1,1,0,0,1,YES
+MALE,67,1,0,1,0,0,1,1,0,1,1,1,0,1,YES
+MALE,62,0,0,0,1,0,1,1,1,1,0,0,1,0,YES
+FEMALE,74,0,1,1,1,1,1,0,1,1,0,0,0,0,YES
+MALE,69,1,0,0,1,0,0,0,0,0,0,0,0,1,NO
+FEMALE,64,1,1,0,1,1,0,0,0,0,0,0,0,0,NO
+MALE,75,1,1,1,1,1,0,0,0,0,0,0,0,1,YES
+MALE,47,1,1,0,0,1,0,0,0,0,0,0,0,1,NO
+FEMALE,57,1,1,0,1,0,0,0,0,0,0,0,0,1,NO
+FEMALE,56,0,0,1,1,1,1,1,1,1,0,1,1,1,YES
+MALE,68,0,0,1,1,1,0,0,0,1,0,0,0,0,NO
+FEMALE,55,0,0,0,1,1,1,1,1,1,0,0,0,1,YES
+MALE,62,1,1,1,0,1,1,1,1,0,0,1,0,0,YES
+FEMALE,73,1,0,0,1,0,1,1,1,1,1,0,1,1,YES
+MALE,68,1,0,0,1,1,1,1,1,1,1,1,1,1,YES
+FEMALE,75,0,1,0,1,1,1,1,0,1,1,0,0,0,YES
+MALE,63,0,1,1,0,1,0,1,1,1,1,0,1,0,YES
+FEMALE,61,0,1,0,1,0,1,0,0,0,1,1,0,1,YES
+MALE,62,0,0,0,0,1,0,1,0,1,1,1,1,1,YES
+MALE,44,0,1,0,1,1,1,0,1,0,0,1,1,1,YES
+MALE,56,1,1,1,1,0,1,1,0,1,1,1,0,1,YES
+MALE,54,0,1,0,1,1,1,1,1,1,1,0,1,1,YES
+FEMALE,57,0,1,1,0,0,0,0,0,0,1,0,0,0,NO
+MALE,56,0,1,0,1,0,1,1,1,1,1,0,0,0,YES
+FEMALE,69,0,0,1,0,1,0,1,1,1,0,0,1,0,YES
+MALE,72,0,1,0,1,0,1,1,1,1,1,1,0,1,YES
+FEMALE,59,1,1,1,1,1,1,0,1,0,1,0,1,1,YES
+FEMALE,70,0,1,0,0,1,1,1,1,0,1,1,0,1,YES
+MALE,64,1,0,0,0,0,1,0,1,1,1,1,0,0,YES
+FEMALE,61,1,1,1,1,0,1,1,0,0,0,1,1,1,YES
+FEMALE,72,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,63,1,1,1,1,0,0,1,0,1,0,0,1,1,YES
+FEMALE,74,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,71,0,0,0,0,1,1,1,1,1,1,1,0,1,YES
+FEMALE,71,1,0,0,0,1,1,0,0,0,0,1,0,0,NO
+MALE,72,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,77,1,0,0,0,0,0,1,1,1,1,0,0,0,YES
+FEMALE,72,0,1,1,1,1,1,0,0,0,0,0,0,0,YES
+MALE,55,1,0,0,0,0,1,0,0,0,0,0,0,0,YES
+MALE,65,1,1,1,1,1,0,0,0,0,0,0,0,0,YES
+FEMALE,67,1,1,1,1,0,1,0,0,0,0,0,0,0,YES
+FEMALE,69,0,0,0,0,1,1,0,0,0,0,0,0,0,YES
+FEMALE,55,1,1,1,1,1,1,0,0,0,0,0,0,0,YES
+FEMALE,51,1,1,1,1,1,0,0,0,0,0,0,0,0,YES
+FEMALE,64,0,0,0,1,1,0,0,0,0,0,0,0,0,YES
+MALE,63,0,0,0,0,1,1,1,0,1,1,1,0,1,YES
+MALE,69,0,1,1,0,0,0,0,1,1,1,1,1,0,YES
+MALE,64,0,1,1,0,1,0,1,0,1,1,1,0,1,YES
+MALE,59,0,1,1,0,0,1,0,1,0,0,0,1,1,YES
+FEMALE,73,1,1,1,0,1,0,1,0,1,0,0,0,0,YES
+FEMALE,63,0,0,0,1,0,0,0,1,1,0,0,1,1,YES
+FEMALE,60,0,0,0,0,1,1,1,0,0,1,1,0,1,YES
+MALE,74,1,0,0,0,1,1,1,1,1,0,0,1,1,YES
+FEMALE,65,0,1,1,1,1,0,1,1,1,1,1,1,0,YES
+MALE,79,1,0,0,0,1,1,1,0,1,1,1,1,1,YES
+MALE,62,0,1,1,1,0,1,0,0,0,0,0,1,1,YES
+FEMALE,71,1,1,1,0,0,0,1,0,1,1,1,0,1,YES
+MALE,63,1,0,0,1,0,0,0,0,0,1,1,0,0,NO
+MALE,67,0,1,1,1,0,1,1,0,0,1,0,1,0,YES
+MALE,55,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,54,1,0,0,0,0,0,1,1,1,1,0,0,0,YES
+FEMALE,77,0,1,1,1,1,1,1,1,0,1,1,1,1,YES
+MALE,64,1,1,1,1,1,0,0,0,1,0,0,1,1,YES
+FEMALE,61,1,1,1,1,0,1,0,0,0,1,1,1,1,YES
+FEMALE,62,0,0,0,0,1,1,0,0,0,0,1,0,0,NO
+FEMALE,67,1,1,1,1,1,1,0,0,0,0,1,1,0,YES
+FEMALE,56,1,1,1,1,1,0,1,1,1,0,0,1,1,YES
+FEMALE,70,0,0,0,1,1,0,1,0,1,1,1,0,0,YES
+MALE,70,0,0,0,0,1,1,1,0,1,1,1,0,1,YES
+FEMALE,57,0,0,1,1,1,1,1,1,1,0,1,1,1,YES
+MALE,61,0,0,1,1,1,0,0,0,1,0,0,0,0,NO
+FEMALE,77,0,0,0,1,1,1,1,1,1,0,0,0,1,YES
+FEMALE,62,1,0,0,1,0,1,1,1,1,1,0,1,1,YES
+MALE,59,1,0,0,1,1,1,1,1,1,1,1,1,1,YES
+FEMALE,70,0,1,0,1,1,1,1,0,1,1,0,0,0,YES
+MALE,71,0,1,1,0,1,0,1,1,1,1,0,1,0,YES
+FEMALE,56,0,1,0,1,0,1,0,0,0,1,1,0,1,YES
+MALE,57,0,0,0,0,1,0,1,0,1,1,1,1,1,YES
+MALE,78,0,1,0,1,1,1,0,1,0,0,1,1,1,YES
+MALE,64,1,1,1,1,0,1,1,0,1,1,1,0,1,YES
+MALE,62,0,1,0,1,1,1,1,1,1,1,0,1,1,YES
+FEMALE,49,0,1,1,0,0,0,0,0,0,1,0,0,0,YES
+MALE,77,0,1,0,1,0,1,1,1,1,1,0,0,0,YES
+FEMALE,64,0,0,1,0,1,0,1,1,1,0,0,1,0,YES
+MALE,63,0,1,0,1,0,1,1,1,1,1,1,0,1,YES
+FEMALE,54,1,1,1,1,1,1,0,1,0,1,0,1,1,YES
+FEMALE,38,0,1,0,0,1,1,1,1,0,1,1,0,1,YES
+FEMALE,75,0,1,1,1,0,0,1,1,0,1,0,1,0,YES
+FEMALE,70,1,0,0,1,1,0,1,0,0,0,1,0,0,YES
+MALE,59,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,77,1,1,1,0,1,0,1,1,0,0,0,1,1,YES
+MALE,61,0,0,1,0,1,1,0,1,1,1,1,1,0,YES
+FEMALE,64,1,1,1,0,0,1,1,0,0,0,1,0,1,YES
+MALE,59,0,0,0,1,0,1,0,1,0,0,1,0,1,NO
+FEMALE,71,1,1,1,0,1,0,0,1,1,0,1,1,1,YES
+MALE,67,0,1,0,0,0,1,0,1,1,1,1,0,0,YES
+FEMALE,64,1,1,0,1,1,1,1,1,0,1,1,0,0,YES
+MALE,68,1,0,1,0,0,1,0,0,0,0,0,0,0,NO
+MALE,69,1,1,1,1,0,1,1,0,0,0,1,1,0,YES
+FEMALE,64,1,1,1,1,1,1,1,1,0,1,1,1,1,YES
+MALE,59,0,1,1,1,1,0,1,0,1,0,0,1,1,YES
+FEMALE,67,1,1,1,1,0,1,0,1,0,1,1,1,0,YES
+MALE,74,0,1,0,0,1,1,1,1,1,1,1,0,1,YES
+FEMALE,77,0,0,0,1,1,1,0,0,1,1,1,1,0,YES
+MALE,64,1,0,0,0,0,0,1,1,1,1,0,0,1,YES
+MALE,70,1,0,1,0,0,1,1,0,1,1,1,0,1,YES
+MALE,58,0,0,0,1,0,1,1,1,1,0,0,1,0,YES
+FEMALE,59,0,1,1,1,1,1,0,1,1,0,0,0,0,YES
+MALE,39,1,0,0,1,0,1,1,1,1,0,1,0,1,YES
+FEMALE,67,0,1,0,0,0,0,0,1,0,1,1,0,0,NO
+FEMALE,71,0,1,0,0,1,1,1,1,0,1,1,0,0,YES
+MALE,70,1,0,0,0,0,1,0,1,1,1,1,0,1,YES
+FEMALE,60,1,1,1,1,0,1,1,0,0,0,1,1,0,YES
+FEMALE,55,1,0,1,0,0,1,0,0,0,0,0,0,0,NO
+MALE,60,1,1,1,1,1,0,1,0,1,0,0,1,1,YES
+FEMALE,55,1,1,1,1,1,1,0,1,0,1,1,1,0,YES
+MALE,55,0,0,0,0,1,1,1,1,1,1,1,0,1,YES
+FEMALE,70,1,0,0,0,0,1,0,0,0,0,1,0,0,NO
+MALE,63,1,0,0,0,0,1,1,1,1,1,1,0,1,YES
+MALE,64,1,0,0,0,0,0,1,1,1,1,0,0,1,NO
+FEMALE,59,0,1,1,1,1,1,1,1,0,1,1,1,0,YES
+MALE,56,1,0,0,0,1,0,1,1,1,1,1,0,1,YES
+FEMALE,62,1,1,1,1,1,1,0,0,0,1,1,0,0,YES
+FEMALE,87,0,0,0,0,1,1,0,0,0,0,1,0,0,NO
+FEMALE,77,1,1,1,1,1,1,0,0,0,0,1,1,0,YES
+FEMALE,59,0,1,1,1,0,0,1,1,0,1,0,1,0,YES
+FEMALE,59,1,0,0,0,1,1,1,0,0,0,1,0,0,NO
+MALE,55,1,0,0,0,0,1,1,0,0,0,1,0,1,NO
+MALE,46,0,1,1,0,0,0,0,0,0,0,0,1,1,NO
+MALE,60,0,1,1,0,0,1,0,1,1,1,1,1,1,YES
+</script>
+<script>
+/* ML engine. Pure functions only, so the whole factory can be stringified into a Web Worker
+   (or run on the main thread as a fallback). Models are plain data, safe to postMessage. */
+function makeML(NF) {
+  'use strict';
+  const D = NF + 2;                       // inputs: age (z-scored), sex, NF binary factors
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const sig = z => 1 / (1 + Math.exp(-z));
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function ageStats(rows) {
+    const ages = rows.map(r => r.age), mean = avg(ages);
+    return { mean, sd: Math.sqrt(avg(ages.map(a => (a - mean) ** 2))) || 1 };
+  }
+  const vec = (r, m) => { const v = new Array(D); v[0] = (r.age - m.mean) / m.sd; v[1] = r.sex; for (let i = 0; i < NF; i++) v[2 + i] = r.f[i]; return v; };
+  function balW(y) {
+    const n = y.length, np = y.reduce((a, b) => a + b, 0), nn = n - np;
+    const wp = np ? n / (2 * np) : 1, wn = nn ? n / (2 * nn) : 1;
+    return y.map(v => v ? wp : wn);
+  }
+
+  /* ---- 1. LightGBM-style gradient-boosted trees (logistic loss, Newton leaves, balanced weights) ---- */
+  function fitGBM(rows, o = {}) {
+    const rounds = o.rounds || 80, lr = o.lr || 0.1, maxD = o.depth || 3, minLeaf = o.minLeaf || 5, lam = 1;
+    const m = ageStats(rows), X = rows.map(r => vec(r, m)), y = rows.map(r => r.y), n = rows.length, w = balW(y);
+    const F = new Float64Array(n), g = new Float64Array(n), h = new Float64Array(n), imp = new Float64Array(D), trees = [];
+    const all = Array.from({ length: n }, (_, i) => i);
+    function build(idx, depth) {
+      let G = 0, H = 0;
+      for (const i of idx) { G += g[i]; H += h[i]; }
+      const leaf = { v: -G / (H + lam) };
+      if (depth >= maxD || idx.length < 2 * minLeaf) return leaf;
+      const parent = G * G / (H + lam);
+      let best = { gain: 1e-6 };
+      for (let j = 1; j < D; j++) {
+        let GL = 0, HL = 0, nL = 0;
+        for (const i of idx) if (X[i][j] <= 0.5) { GL += g[i]; HL += h[i]; nL++; }
+        const nR = idx.length - nL;
+        if (nL < minLeaf || nR < minLeaf) continue;
+        const gain = GL * GL / (HL + lam) + (G - GL) * (G - GL) / (H - HL + lam) - parent;
+        if (gain > best.gain) best = { gain, j, t: 0.5 };
+      }
+      const s = idx.slice().sort((a, b) => X[a][0] - X[b][0]);
+      let GL = 0, HL = 0;
+      for (let k = 0; k < s.length - 1; k++) {
+        GL += g[s[k]]; HL += h[s[k]];
+        const nL = k + 1, nR = s.length - nL;
+        if (nL < minLeaf || nR < minLeaf || X[s[k]][0] === X[s[k + 1]][0]) continue;
+        const gain = GL * GL / (HL + lam) + (G - GL) * (G - GL) / (H - HL + lam) - parent;
+        if (gain > best.gain) best = { gain, j: 0, t: (X[s[k]][0] + X[s[k + 1]][0]) / 2 };
+      }
+      if (best.j === undefined) return leaf;
+      imp[best.j] += best.gain;
+      const L = [], R = [];
+      for (const i of idx) (X[i][best.j] <= best.t ? L : R).push(i);
+      return { j: best.j, t: best.t, l: build(L, depth + 1), r: build(R, depth + 1) };
+    }
+    const walk = (node, x) => { while (node.l) node = x[node.j] <= node.t ? node.l : node.r; return node.v; };
+    for (let t = 0; t < rounds; t++) {
+      for (let i = 0; i < n; i++) { const p = sig(F[i]); g[i] = w[i] * (p - y[i]); h[i] = Math.max(1e-6, w[i] * p * (1 - p)); }
+      const tree = build(all, 0);
+      trees.push(tree);
+      for (let i = 0; i < n; i++) F[i] += lr * walk(tree, X[i]);
+    }
+    return { type: 'gbm', mean: m.mean, sd: m.sd, lr, trees, imp: Array.from(imp) };
+  }
+  function predGBM(m, r) {
+    const x = vec(r, m); let z = 0;
+    for (const t of m.trees) { let node = t; while (node.l) node = x[node.j] <= node.t ? node.l : node.r; z += m.lr * node.v; }
+    return sig(z);
+  }
+
+  /* ---- 2. K-Means SMOTE + MLP (64-32, ReLU, Adam) ---- */
+  const dist2 = (a, b) => { let s = 0; for (let d = 0; d < a.length; d++) s += (a[d] - b[d]) ** 2; return s; };
+  function kmeans(X, k, rnd, iters = 40) {
+    const n = X.length, dim = X[0].length; k = Math.min(k, n);
+    const C = [], used = new Set();
+    while (C.length < k) { const i = Math.floor(rnd() * n); if (!used.has(i)) { used.add(i); C.push(X[i].slice()); } }
+    const lab = new Int32Array(n).fill(-1);
+    for (let it = 0; it < iters; it++) {
+      let changed = false;
+      for (let i = 0; i < n; i++) {
+        let best = 0, bd = Infinity;
+        for (let c = 0; c < k; c++) { const d = dist2(X[i], C[c]); if (d < bd) { bd = d; best = c; } }
+        if (lab[i] !== best) { lab[i] = best; changed = true; }
+      }
+      if (!changed) break;
+      const sum = Array.from({ length: k }, () => new Array(dim).fill(0)), cnt = new Array(k).fill(0);
+      for (let i = 0; i < n; i++) { cnt[lab[i]]++; for (let d = 0; d < dim; d++) sum[lab[i]][d] += X[i][d]; }
+      for (let c = 0; c < k; c++) if (cnt[c]) for (let d = 0; d < dim; d++) C[c][d] = sum[c][d] / cnt[c];
+    }
+    return lab;
+  }
+  // SMOTE inside one group of minority points: interpolate towards one of the kn nearest neighbours.
+  function smoteWithin(pts, count, rnd, kn) {
+    const out = [];
+    if (pts.length < 2) return out;
+    const k = Math.min(kn, pts.length - 1);
+    const nb = pts.map((p, i) => pts.map((q, j) => [dist2(p, q), j]).filter(x => x[1] !== i).sort((a, b) => a[0] - b[0]).slice(0, k).map(x => x[1]));
+    for (let s = 0; s < count; s++) {
+      const i = Math.floor(rnd() * pts.length), j = nb[i][Math.floor(rnd() * k)], t = rnd();
+      out.push(pts[i].map((v, d) => v + t * (pts[j][d] - v)));
+    }
+    return out;
+  }
+  // K-Means SMOTE: cluster everything, keep clusters that contain enough minority points,
+  // give sparser clusters more synthetic samples, then SMOTE inside each chosen cluster.
+  function kmeansSmote(X, y, rnd, o = {}) {
+    const clusters = o.clusters || 8, kn = o.kNeighbors || 2;
+    const n1 = y.reduce((a, b) => a + b, 0), n0 = y.length - n1, cls = n1 < n0 ? 1 : 0, need = Math.abs(n1 - n0);
+    if (!need) return { X, y };
+    const lab = kmeans(X, clusters, rnd), groups = [];
+    for (let c = 0; c < clusters; c++) {
+      const pts = []; for (let i = 0; i < X.length; i++) if (lab[i] === c && y[i] === cls) pts.push(X[i]);
+      if (pts.length <= kn) continue;                       // too few minority points to interpolate
+      let tot = 0, m = 0;
+      for (let i = 0; i < pts.length; i++) for (let j = 0; j < pts.length; j++) if (i !== j) { tot += Math.sqrt(dist2(pts[i], pts[j])); m++; }
+      const avgD = tot / m;
+      groups.push({ pts, sparsity: Math.pow(avgD, X[0].length) / pts.length });
+    }
+    let synth = [];
+    if (groups.length) {
+      const sumSp = groups.reduce((a, g) => a + g.sparsity, 0);
+      let left = need;
+      groups.forEach((g, i) => {
+        const cnt = i === groups.length - 1 ? left : Math.min(left, Math.round(need * g.sparsity / sumSp));
+        left -= cnt; synth = synth.concat(smoteWithin(g.pts, cnt, rnd, kn));
+      });
+    } else {                                                // fallback: plain SMOTE over all minority points
+      const pts = []; for (let i = 0; i < X.length; i++) if (y[i] === cls) pts.push(X[i]);
+      synth = smoteWithin(pts, need, rnd, 5);
+    }
+    return { X: X.concat(synth), y: y.concat(synth.map(() => cls)) };
+  }
+  function fitMLP(rows, o = {}) {
+    const h1 = o.h1 || 64, h2 = o.h2 || 32, epochs = o.epochs || 200, lr = o.lr || 0.004, bs = 32, alpha = 1e-4;
+    const rnd = mulberry(o.seed || 7);
+    const m = ageStats(rows);
+    let X = rows.map(r => vec(r, m)), y = rows.map(r => r.y);
+    ({ X, y } = kmeansSmote(X, y, rnd));
+    const n = X.length;
+    const randn = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
+    const init = (len, sc) => { const a = new Float64Array(len); for (let i = 0; i < len; i++) a[i] = randn() * sc; return a; };
+    const P = { W1: init(h1 * D, Math.sqrt(2 / D)), b1: new Float64Array(h1), W2: init(h2 * h1, Math.sqrt(2 / h1)), b2: new Float64Array(h2), W3: init(h2, Math.sqrt(2 / h2)), b3: new Float64Array(1) };
+    const keys = Object.keys(P), G = {}, M = {}, V = {};
+    keys.forEach(k => { G[k] = new Float64Array(P[k].length); M[k] = new Float64Array(P[k].length); V[k] = new Float64Array(P[k].length); });
+    const a1 = new Float64Array(h1), a2 = new Float64Array(h2), d2 = new Float64Array(h2), d1 = new Float64Array(h1);
+    const order = Array.from({ length: n }, (_, i) => i);
+    let step = 0;
+    for (let ep = 0; ep < epochs; ep++) {
+      for (let i = n - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+      for (let b = 0; b < n; b += bs) {
+        const end = Math.min(n, b + bs), cnt = end - b;
+        keys.forEach(k => G[k].fill(0));
+        for (let q = b; q < end; q++) {
+          const idx = order[q], x = X[idx];
+          for (let j = 0; j < h1; j++) { let s = P.b1[j]; const off = j * D; for (let k = 0; k < D; k++) s += P.W1[off + k] * x[k]; a1[j] = s > 0 ? s : 0; }
+          for (let i2 = 0; i2 < h2; i2++) { let s = P.b2[i2]; const off = i2 * h1; for (let j = 0; j < h1; j++) s += P.W2[off + j] * a1[j]; a2[i2] = s > 0 ? s : 0; }
+          let z = P.b3[0]; for (let i2 = 0; i2 < h2; i2++) z += P.W3[i2] * a2[i2];
+          const dz = sig(z) - y[idx];
+          G.b3[0] += dz;
+          for (let i2 = 0; i2 < h2; i2++) { G.W3[i2] += dz * a2[i2]; d2[i2] = a2[i2] > 0 ? dz * P.W3[i2] : 0; }
+          d1.fill(0);
+          for (let i2 = 0; i2 < h2; i2++) {
+            const dd = d2[i2]; if (!dd) continue;
+            G.b2[i2] += dd; const off = i2 * h1;
+            for (let j = 0; j < h1; j++) { G.W2[off + j] += dd * a1[j]; d1[j] += dd * P.W2[off + j]; }
+          }
+          for (let j = 0; j < h1; j++) {
+            const dd = a1[j] > 0 ? d1[j] : 0; if (!dd) continue;
+            G.b1[j] += dd; const off = j * D;
+            for (let k = 0; k < D; k++) G.W1[off + k] += dd * x[k];
+          }
+        }
+        step++;
+        const c1 = 1 - Math.pow(0.9, step), c2 = 1 - Math.pow(0.999, step);
+        for (const k of keys) {
+          const p = P[k], gg = G[k], mm = M[k], vv = V[k], reg = k[0] === 'W' ? alpha : 0;
+          for (let t = 0; t < p.length; t++) {
+            const gr = gg[t] / cnt + reg * p[t];
+            mm[t] = 0.9 * mm[t] + 0.1 * gr; vv[t] = 0.999 * vv[t] + 0.001 * gr * gr;
+            p[t] -= lr * (mm[t] / c1) / (Math.sqrt(vv[t] / c2) + 1e-8);
+          }
+        }
+      }
+    }
+    return { type: 'mlp', mean: m.mean, sd: m.sd, h1, h2, P };
+  }
+  function predMLP(m, r) {
+    const x = vec(r, m), { h1, h2, P } = m;
+    const a1 = new Float64Array(h1), a2 = new Float64Array(h2);
+    for (let j = 0; j < h1; j++) { let s = P.b1[j]; const off = j * D; for (let k = 0; k < D; k++) s += P.W1[off + k] * x[k]; a1[j] = s > 0 ? s : 0; }
+    for (let i = 0; i < h2; i++) { let s = P.b2[i]; const off = i * h1; for (let j = 0; j < h1; j++) s += P.W2[off + j] * a1[j]; a2[i] = s > 0 ? s : 0; }
+    let z = P.b3[0]; for (let i = 0; i < h2; i++) z += P.W3[i] * a2[i];
+    return sig(z);
+  }
+
+  function predict(m, r) { return m.type === 'gbm' ? predGBM(m, r) : predMLP(m, r); }
+
+  /* fit the final models (no cross-validation needed any more) */
+  const FIT = { gbm: r => fitGBM(r), mlp: r => fitMLP(r) };
+  function trainAll(rows, progress, only) {
+    const out = { models: {} };
+    for (const key of (only || ['gbm', 'mlp'])) { out.models[key] = FIT[key](rows); if (progress) progress({ key }); }
+    return out;
+  }
+  // cross-validation helper, used only by the offline test script
+  function cvScores(rows, key, k = 5) {
+    const rnd = mulberry(42), fold = new Array(rows.length);
+    [1, 0].forEach(cls => { const ids = []; rows.forEach((r, i) => { if (r.y === cls) ids.push(i); }); for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; } ids.forEach((id, n) => { fold[id] = n % k; }); });
+    const oof = new Array(rows.length);
+    for (let f = 0; f < k; f++) { const m = FIT[key](rows.filter((_, i) => fold[i] !== f)); rows.forEach((r, i) => { if (fold[i] === f) oof[i] = predict(m, r); }); }
+    return oof;
+  }
+  return { predict, trainAll, cvScores };
+}
+
+(() => {
+'use strict';
+
+/* =====================================================================
+   Lung Risk Lens: client-side app. Data -> models -> risk check + analytics.
+   ===================================================================== */
+
+/* ---------- constants ---------- */
+const DATA_URL = 'data/lung_cancer.csv';
+const POLL_MS = 4000;
+const LIFE = [['SMOKING','Smoking'],['YELLOW_FINGERS','Yellow fingers'],['ANXIETY','Anxiety'],['PEER_PRESSURE','Peer pressure'],['ALCOHOL CONSUMING','Alcohol consumption'],['CHRONIC DISEASE','Chronic disease'],['ALLERGY','Allergy']];
+const SYMP = [['FATIGUE','Fatigue'],['WHEEZING','Wheezing'],['COUGHING','Coughing'],['SHORTNESS OF BREATH','Shortness of breath'],['SWALLOWING DIFFICULTY','Swallowing difficulty'],['CHEST PAIN','Chest pain']];
+const FACT = [...LIFE.map(([key,label]) => ({key,label,group:'life'})), ...SYMP.map(([key,label]) => ({key,label,group:'symptom'}))];
+const NF = FACT.length;
+const NL = LIFE.length;
+const FI = Object.fromEntries(FACT.map((f,i) => [f.key,i]));
+const SHORT = {SMOKING:'Smoking',YELLOW_FINGERS:'Yellow fing.',ANXIETY:'Anxiety',PEER_PRESSURE:'Peer press.','ALCOHOL CONSUMING':'Alcohol','CHRONIC DISEASE':'Chronic dis.',ALLERGY:'Allergy',FATIGUE:'Fatigue',WHEEZING:'Wheezing',COUGHING:'Coughing','SHORTNESS OF BREATH':'Breathless','SWALLOWING DIFFICULTY':'Swallowing','CHEST PAIN':'Chest pain'};
+const HINT = {SMOKING:'Currently or regularly smokes',YELLOW_FINGERS:'Yellow staining on fingers, often from heavy smoking',ANXIETY:'Ongoing anxiety',PEER_PRESSURE:'Smoking or drinking influenced by peers',CHRONIC_DISEASE:'',ALLERGY:'Known allergies',FATIGUE:'Unusual tiredness',WHEEZING:'Whistling sound when breathing',COUGHING:'Frequent or lasting cough','SHORTNESS OF BREATH':'Breathless with little effort','SWALLOWING DIFFICULTY':'Food or drink is hard to swallow','CHEST PAIN':'Pain or tightness in the chest','CHRONIC DISEASE':'A long-term medical condition','ALCOHOL CONSUMING':'Drinks alcohol regularly'};
+const BANDS = ['Under 50','50–54','55–59','60–64','65–69','70–74','75+'];
+const bandOf = a => a < 50 ? 0 : a < 55 ? 1 : a < 60 ? 2 : a < 65 ? 3 : a < 70 ? 4 : a < 75 ? 5 : 6;
+const LOW_MAX = 35, HIGH_MIN = 65;
+const MODEL_NAME = { gbm: 'LightGBM', mlp: 'K-Means SMOTE + MLP' };
+const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const avg = a => a.length ? a.reduce((x,y) => x + y, 0) / a.length : 0;
+const pct = (a,b) => b ? 100 * a / b : 0;
+const norm = s => String(s).replace(/[^a-z0-9]/gi,'').toUpperCase();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const niceMax = v => [4,8,12,16,20,24,28,32,40,48,60,80,100,120,160,200,240,300].find(s => s >= v) || Math.ceil(v/100)*100;
+const clock = d => d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const median = a => { if (!a.length) return 0; const s = [...a].sort((x,y) => x-y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; };
+const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x-m)**2))); };
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k,v) { try { localStorage.setItem(k,v); } catch (e) { /* private mode */ } } };
+
+/* ---------- state ---------- */
+const ML = makeML(NF);
+const S = { rows: [], info: null, models: {}, ys: [], train: { running: false }, source: 'none', rawText: '', dedupe: true, added: 0, ver: 0 };
+const F = { sex: null, band: null, burden: null, flags: new Map() };
+const P = { age: 62, sex: 1, f: new Array(NF).fill(0), example: true, pins: [] };
+let ANIM = false, PAGE = 'overview', VIEW = 'check';
+
+/* =====================================================================
+   1. CSV -> rows
+   ===================================================================== */
+function parseCSV(text) {
+  const lines = text.replace(/^﻿/,'').split(/\r?\n/).filter(l => l.trim() !== '');
+  const split = l => l.split(',').map(s => s.trim().replace(/^"|"$/g,''));
+  if (lines.length < 2) throw new Error('The file has no data rows.');
+  return { head: split(lines[0]), raw: lines.slice(1).map(split) };
+}
+function buildRows(text, dedupe) {
+  const { head, raw } = parseCSV(text);
+  const idx = {};
+  head.forEach((h,i) => { idx[norm(h)] = i; });
+  const need = ['GENDER','AGE',...FACT.map(f => f.key),'LUNG_CANCER'];
+  const missing = need.filter(k => idx[norm(k)] === undefined);
+  if (missing.length) throw new Error('Missing columns: ' + missing.join(', '));
+  const col = k => raw.map(r => r[idx[norm(k)]]);
+  const binary = k => {
+    const nums = col(k).map(v => /^(yes|y|true)$/i.test(v) ? 1 : /^(no|n|false)$/i.test(v) ? 0 : Number(v));
+    const shift = (!nums.includes(0) && nums.includes(2)) ? 1 : 0;      // supports the original 1/2 coding
+    return nums.map(v => (v - shift) === 1 ? 1 : 0);
+  };
+  const bins = FACT.map(f => binary(f.key));
+  const target = binary('LUNG_CANCER');
+  const sexCol = col('GENDER'), ageCol = col('AGE');
+  const cells = need.map(k => col(k));
+  let rows = [], invalid = 0;
+  raw.forEach((_, i) => {
+    const age = Number(ageCol[i]);
+    const blank = cells.some(c => c[i] === undefined || c[i] === '');
+    if (blank || !Number.isFinite(age) || age <= 0) { invalid++; return; }
+    const f = bins.map(b => b[i]);
+    const r = { age, sex: /^m/i.test(sexCol[i]) ? 1 : 0, f, y: target[i] };
+    r.band = bandOf(age);
+    r.bur = f.slice(NL).reduce((a,b) => a + b, 0);
+    rows.push(r);
+  });
+  const total = rows.length;
+  const seen = new Set(); let dupes = 0;
+  const kept = rows.filter(r => { const k = r.age + '|' + r.sex + '|' + r.f.join('') + '|' + r.y; if (seen.has(k)) { dupes++; return false; } seen.add(k); return true; });
+  if (dedupe) rows = kept;
+  if (rows.length < 20) throw new Error('Need at least 20 valid rows to train the models.');
+  return { rows, info: { rawCount: total + invalid, invalid, dupesFound: dupes, dupesRemoved: dedupe ? dupes : 0 } };
+}
+
+/* =====================================================================
+   2. Models: LightGBM-style trees (instant) + K-Means SMOTE + MLP (background worker)
+   ===================================================================== */
+let worker = null, trainToken = 0, trainTimer = 0;
+function resetModels() {
+  S.models = {}; S.ys = S.rows.map(r => r.y);
+  const np = S.ys.reduce((a,b) => a + b, 0);
+  if (np === 0 || np === S.ys.length) return false;
+  S.models.gbm = ML.trainAll(S.rows, null, ['gbm']).models.gbm;
+  return true;
+}
+function startTraining() {
+  clearTimeout(trainTimer);
+  trainTimer = setTimeout(runTraining, 350);
+}
+function runTraining() {
+  const token = ++trainToken, rows = S.rows.map(r => ({ age: r.age, sex: r.sex, f: r.f, y: r.y }));
+  if (worker) { worker.terminate(); worker = null; }
+  if (!S.models.gbm) { S.train.running = false; updateTrainUI(); return; }
+  S.train.running = true;
+  updateTrainUI(); renderAll();
+  const finish = res => {
+    if (token !== trainToken) return;
+    Object.assign(S.models, res.models); S.ver++; S.train.running = false;
+    updateTrainUI(); renderAll();
+    toast('K-Means SMOTE + MLP is ready');
+  };
+  const fallback = () => setTimeout(() => finish(ML.trainAll(rows, null, ['mlp'])), 30);
+  try {
+    const src = `const ML=(${makeML.toString()})(${NF});onmessage=e=>{postMessage({t:'d',res:ML.trainAll(e.data.rows,null,e.data.only)});};`;
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    worker = new Worker(url);
+    worker.onmessage = e => { if (token !== trainToken) return; worker.terminate(); worker = null; finish(e.data.res); };
+    worker.onerror = () => { if (worker) { worker.terminate(); worker = null; } fallback(); };
+    worker.postMessage({ rows, only: ['mlp'] });
+  } catch (e) { fallback(); }
+}
+function updateTrainUI() {
+  $('#trainPill').hidden = !S.train.running;
+  $('#trainText').textContent = 'Training K-Means SMOTE + MLP';
+}
+const ready = k => !!S.models[k];
+function pm(key, r) { return ML.predict(S.models[key], r) * 100; }
+// the risk score is the average of the models that are ready (LightGBM first, then K-Means SMOTE + MLP)
+function scoreOf(r) {
+  const ks = Object.keys(S.models);
+  return ks.length ? avg(ks.map(k => pm(k, r))) : NaN;
+}
+const tierOf = s => s < LOW_MAX ? 'low' : s < HIGH_MIN ? 'mod' : 'high';
+const scoreCache = {};
+function datasetScores() {
+  const key = S.ver + '|' + Object.keys(S.models).join();
+  if (!scoreCache[key]) { Object.keys(scoreCache).forEach(k => delete scoreCache[k]); scoreCache[key] = S.rows.map(scoreOf); }
+  return scoreCache[key];
+}
+
+/* =====================================================================
+   3. Loading + live refresh + session records
+   ===================================================================== */
+function ingest(text, source, keepFilters) {
+  const errEl = $('#dpError');
+  try {
+    const prev = S.rows.length, wasFile = S.source;
+    const { rows, info } = buildRows(text, S.dedupe);
+    S.rows = rows;
+    S.info = { ...info, name: source.name, time: new Date() };
+    S.source = source.kind; S.rawText = text; S.added = 0;
+    errEl.hidden = true;
+    if (!keepFilters) { F.sex = null; F.band = null; F.burden = null; F.flags.clear(); }
+    afterData();
+    if (prev && wasFile === 'file' && source.kind === 'file') {
+      const d = rows.length - prev;
+      toast(d > 0 ? `Dataset updated: +${d} record${d === 1 ? '' : 's'}` : d < 0 ? `Dataset updated: ${-d} fewer record${d === -1 ? '' : 's'}` : 'Dataset updated');
+    }
+    return true;
+  } catch (e) {
+    errEl.textContent = e.message; errEl.hidden = false;
+    $('#dataPanel').hidden = false; $('#dataBtn').setAttribute('aria-expanded', 'true');
+    return false;
+  }
+}
+function afterData() {
+  S.ver++;
+  resetModels();
+  charts.forEach(c => { c.drawn = false; });
+  renderAll();
+  startTraining();
+}
+async function fetchText() {
+  const r = await fetch(DATA_URL + '?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.text();
+}
+async function boot() {
+  let loaded = false;
+  const seed = document.getElementById('seed');
+  if (seed) loaded = ingest(seed.textContent, { kind: 'embedded', name: 'Embedded dataset' });
+  else {
+    try {
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(DATA_URL + '?t=' + Date.now(), { cache: 'no-store', signal: ctl.signal });
+      clearTimeout(to);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      loaded = ingest(await r.text(), { kind: 'file', name: 'data/lung_cancer.csv' });
+    } catch (e) { /* not served over http: use the bundled copy */ }
+    if (!loaded && window.SEED_CSV) loaded = ingest(window.SEED_CSV, { kind: 'embedded', name: 'data/lung_cancer.js (bundled copy)' });
+    if (!loaded) {
+      setStatus();
+      $('#dpError').textContent = 'Could not read data/lung_cancer.csv. Start a local server in this folder (python3 -m http.server) or load a CSV with the button below.';
+      $('#dpError').hidden = false; $('#dataPanel').hidden = false;
+    }
+  }
+  setStatus();
+  setInterval(async () => {
+    if (S.source !== 'file') return;
+    try {
+      const t = await fetchText();
+      if (t !== S.rawText) ingest(t, { kind: 'file', name: 'data/lung_cancer.csv' });
+      else { S.info.checked = new Date(); setStatus(); }
+    } catch (e) { /* keep last good data */ }
+  }, POLL_MS);
+}
+function setStatus() {
+  const pill = $('#livePill'), t = $('#liveText');
+  if (!S.info) { pill.className = 'pill'; t.textContent = 'No data'; return; }
+  const n = S.rows.length;
+  pill.className = 'pill' + (S.source === 'file' ? ' live' : '');
+  t.textContent = S.source === 'file' ? `Live · ${n} records · ${clock(S.info.checked || S.info.time)}` : S.source === 'upload' ? `Uploaded · ${n} records` : `${n} records`;
+  $('#dpSource').textContent = S.info.name;
+  $('#dpRows').textContent = n;
+  $('#dpDupes').textContent = S.info.dupesFound;
+  $('#dpAdded').textContent = S.added;
+  $('#dpTime').textContent = clock(S.info.time);
+}
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), 4100);
+}
+function csvText() {
+  const cols = ['GENDER','AGE',...FACT.map(f => f.key),'LUNG_CANCER'];
+  const lines = S.rows.map(r => [r.sex ? 'MALE' : 'FEMALE', r.age, ...r.f, r.y ? 'YES' : 'NO'].join(','));
+  return [cols.join(','), ...lines].join('\n');
+}
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); return; } catch (e) { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove();
+    toast(ok ? okMsg : 'Copy is blocked in this view. Select the text and copy it manually.');
+  } catch (e) { toast('Copy is blocked in this view.'); }
+}
+
+/* =====================================================================
+   4. Risk check
+   ===================================================================== */
+function buildForm() {
+  const mk = (list, el, offset) => {
+    $(el).innerHTML = list.map(([key,label], i) => `<label class="chip" for="f${offset+i}" title="${esc(HINT[key] || '')}"><input type="checkbox" id="f${offset+i}" data-i="${offset+i}"><span>${esc(label)}</span></label>`).join('');
+  };
+  mk(LIFE, '#chipsLife', 0); mk(SYMP, '#chipsSymp', NL);
+  $('#form').addEventListener('change', e => {
+    const t = e.target;
+    if (t.dataset.i !== undefined) P.f[+t.dataset.i] = t.checked ? 1 : 0;
+    else if (t.name === 'sex') P.sex = +t.value;
+    else if (t.id === 'ageNum') setAge(t.value);
+    markEdited(); renderResult();
+  });
+  $('#ageRange').addEventListener('input', e => { setAge(e.target.value); markEdited(); renderResult(); });
+  $('#ageNum').addEventListener('input', e => { if (e.target.value !== '') { setAge(e.target.value, true); markEdited(); renderResult(); } });
+  const preset = (age, sex, on) => { P.age = age; P.sex = sex; P.f = FACT.map(f => on.includes(f.key) ? 1 : 0); syncForm(); markEdited(); renderResult(); };
+  $('#presetLow').onclick = () => preset(45, 0, ['ALLERGY']);
+  $('#presetHigh').onclick = () => preset(68, 1, ['SMOKING','ALCOHOL CONSUMING','CHRONIC DISEASE','FATIGUE','WHEEZING','COUGHING','CHEST PAIN','SWALLOWING DIFFICULTY']);
+  $('#presetClear').onclick = () => preset(55, 0, []);
+  P.f = FACT.map(f => ['SMOKING','FATIGUE','COUGHING','WHEEZING','ANXIETY'].includes(f.key) ? 1 : 0);
+  syncForm();
+  $('#pinBtn').onclick = pinProfile;
+  $('#copyBtn').onclick = copySummary;
+  $('#miniGo').onclick = () => $('#resultCard').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+  $('#pins').addEventListener('click', e => {
+    const x = e.target.closest('[data-del]'); if (x) { P.pins.splice(+x.dataset.del, 1); renderPins(scoreOf({ age: P.age, sex: P.sex, f: P.f })); return; }
+    const l = e.target.closest('[data-load]'); if (l) { const p = P.pins[+l.dataset.load]; P.age = p.age; P.sex = p.sex; P.f = [...p.f]; syncForm(); markEdited(); renderResult(); }
+  });
+}
+function setAge(v, keepInput) {
+  let a = Math.round(Number(v));
+  if (!Number.isFinite(a)) return;
+  a = Math.min(100, Math.max(18, a));
+  P.age = a;
+  $('#ageRange').value = Math.min(90, a);
+  if (!keepInput) $('#ageNum').value = a;
+}
+function syncForm() {
+  $('#ageRange').value = Math.min(90, P.age); $('#ageNum').value = P.age;
+  $(P.sex ? '#sexM' : '#sexF').checked = true;
+  FACT.forEach((f,i) => { $('#f' + i).checked = !!P.f[i]; });
+}
+function markEdited() {
+  if (P.example) { P.example = false; $('#exampleNote').textContent = 'Answers stay in this browser. The score updates as you change them.'; }
+}
+const TIER = {
+  low: { label: 'Lower risk', advice: 'Few of the indicators match the positive cases in the data. Keep an eye out for new or lasting symptoms.', icon: '<circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.8 8.3l2.2 2.2 4.2-4.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' },
+  mod: { label: 'Moderate risk', advice: 'Several indicators overlap with positive cases. A check-up is a reasonable next step.', icon: '<path d="M8 1.8L15 14H1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 6.2v4M8 12v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' },
+  high: { label: 'Higher risk', advice: 'Many indicators match positive cases in the data. Please speak with a doctor about proper screening.', icon: '<path d="M5 1h6l4 4v6l-4 4H5l-4-4V5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 4.8v4.2M8 11.2v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' }
+};
+const tierPill = (tier, cls = '') => `<span class="tier-pill ${tier} ${cls}"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${TIER[tier].icon}</svg>${TIER[tier].label}</span>`;
+function gaugeSVG(shown, target) {
+  const cx = 150, cy = 140, R = 112, sw = 18;
+  const pt = (s, r = R) => { const a = Math.PI * (1 - s / 100); return [cx + r * Math.cos(a), cy - r * Math.sin(a)]; };
+  const arc = (s0, s1) => { const [x0,y0] = pt(s0), [x1,y1] = pt(s1); return `M${x0.toFixed(1)} ${y0.toFixed(1)}A${R} ${R} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+  const g = 0.9, tier = tierOf(target);
+  const seg = (a, b, c) => `<path d="${arc(a + g, b - g)}" fill="none" stroke="var(--${c})" stroke-width="${sw}" opacity="${tier === c ? 1 : .25}"/>`;
+  const sc = Math.min(100, Math.max(0, shown)), [mx, my] = pt(sc);
+  return `<svg viewBox="0 0 300 175" role="img" aria-label="Risk score ${Math.round(target)} out of 100">
+    ${seg(0, LOW_MAX, 'low')}${seg(LOW_MAX, HIGH_MIN, 'mod')}${seg(HIGH_MIN, 100, 'high')}
+    <circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="12" fill="var(--surface)" stroke="var(--ink)" stroke-width="3"/>
+    <text x="${cx}" y="${cy - 14}" text-anchor="middle" style="font:500 54px var(--f-mono);fill:var(--ink);letter-spacing:-.03em">${Math.round(shown)}</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" class="ax">out of 100</text>
+    <text x="${pt(0)[0]}" y="${cy + 32}" text-anchor="middle" class="ax">0</text>
+    <text x="${pt(100)[0]}" y="${cy + 32}" text-anchor="middle" class="ax">100</text>
+  </svg>`;
+}
+const G = { shown: 0, raf: 0, tier: '' };
+function animateGauge(to) {
+  cancelAnimationFrame(G.raf);
+  const from = G.shown, t0 = performance.now(), dur = REDUCED ? 0 : 700;
+  const step = now => {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3);
+    G.shown = from + (to - from) * e;
+    $('#gauge').innerHTML = gaugeSVG(G.shown, to);
+    if (k < 1) G.raf = requestAnimationFrame(step);
+  };
+  G.raf = requestAnimationFrame(step);
+}
+const NOTES = {
+  'COUGHING': 'A cough that lasts more than three weeks is worth a check-up.',
+  'CHEST PAIN': 'Chest pain that is new, lasting, or comes with breathlessness needs prompt medical attention.',
+  'SHORTNESS OF BREATH': 'New or worsening breathlessness should be assessed by a doctor.',
+  'SWALLOWING DIFFICULTY': 'Ongoing trouble swallowing should be checked, whatever the cause.',
+  'WHEEZING': 'Wheezing that is new or does not settle is worth discussing with a doctor.',
+  'FATIGUE': 'Tiredness with no clear reason for several weeks deserves a general check.',
+  'SMOKING': 'Quitting smoking lowers lung risk at any age. A doctor or quitline can help you plan it.',
+  'ALCOHOL CONSUMING': 'Cutting back on alcohol supports lung and overall health.',
+  'CHRONIC DISEASE': 'Keep long-term conditions well managed and review them at regular visits.'
+};
+function renderSteps(tier) {
+  const out = [];
+  if (tier === 'high') out.push('<b>Book a doctor visit soon</b> and share this summary. Ask whether lung screening suits you.');
+  else if (tier === 'mod') out.push('<b>Plan a check-up</b> and mention the symptoms you ticked.');
+  else out.push('<b>Stay alert.</b> See a doctor if a symptom lasts or gets worse.');
+  const order = ['COUGHING','CHEST PAIN','SHORTNESS OF BREATH','SWALLOWING DIFFICULTY','WHEEZING','FATIGUE','SMOKING','ALCOHOL CONSUMING','CHRONIC DISEASE'];
+  order.filter(k => P.f[FI[k]]).slice(0, 4).forEach(k => out.push(NOTES[k]));
+  if (!P.f.some(Boolean)) out.push('Tick any habits or symptoms that apply to see tailored guidance.');
+  $('#steps').innerHTML = out.map(t => `<li><span>${t}</span></li>`).join('');
+}
+function renderAgree(me) {
+  const keys = ['gbm','mlp'];
+  const items = keys.map(k => {
+    if (!ready(k)) return `<div class="ag wait"><span>${MODEL_NAME[k]}</span><b>${S.train.running ? 'training…' : '–'}</b></div>`;
+    const s = pm(k, me); return `<div class="ag ${tierOf(s)}"><span>${MODEL_NAME[k]}</span><b>${Math.round(s)}</b></div>`;
+  });
+  const tiers = keys.filter(ready).map(k => tierOf(pm(k, me)));
+  let v = '';
+  if (tiers.length === 2) v = tiers[0] === tiers[1] ? `Both models agree: ${TIER[tiers[0]].label.toLowerCase()}.` : 'The two models differ. Treat the result as less certain.';
+  else if (S.train.running) v = 'Showing LightGBM for now. The score updates when K-Means SMOTE + MLP finishes.';
+  $('#agree').innerHTML = items.join('') + (v ? `<div class="verdict">${v}</div>` : '');
+}
+function renderPins(cur) {
+  $('#pins').innerHTML = P.pins.map((p, i) => {
+    const s = scoreOf(p), d = Math.round(cur - s), n = p.f.reduce((a,b) => a + b, 0);
+    return `<div class="pin"><span class="tag">${'ABC'[p.n]}</span><button type="button" class="load" data-load="${i}" title="Load this profile">Age ${p.age} · ${p.sex ? 'M' : 'F'} · ${n} item${n === 1 ? '' : 's'} · ${Math.round(s)}</button><span class="d ${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d === 0 ? '±0' : (d > 0 ? '+' : '−') + Math.abs(d)}</span><button type="button" class="x" data-del="${i}" aria-label="Remove pin">×</button></div>`;
+  }).join('');
+  $('#pinBtn').textContent = P.pins.length >= 3 ? 'Replace oldest pin' : 'Pin to compare';
+}
+let pinSeq = 0;
+function pinProfile() {
+  if (P.pins.length >= 3) P.pins.shift();
+  P.pins.push({ age: P.age, sex: P.sex, f: [...P.f], n: pinSeq++ % 3 });
+  renderPins(scoreOf({ age: P.age, sex: P.sex, f: P.f }));
+  toast('Pinned. Change an answer to see how the score moves against it.');
+}
+const keysText = () => Object.keys(S.models).map(k => MODEL_NAME[k]).join(' and ');
+function copySummary() {
+  const me = { age: P.age, sex: P.sex, f: P.f }, s = scoreOf(me);
+  const on = FACT.filter((f,i) => P.f[i]).map(f => f.label);
+  copyText(`Lung Risk Lens summary\nScore: ${Math.round(s)}/100 (${TIER[tierOf(s)].label}), average of ${keysText()}\nAge ${P.age}, ${P.sex ? 'male' : 'female'}\nReported: ${on.length ? on.join(', ') : 'none'}\nThis is a screening aid trained on a small survey dataset. It does not diagnose lung cancer.`, 'Summary copied');
+}
+let lastTier = '';
+function renderResult() {
+  if (!Object.keys(S.models).length) {
+    $('#gauge').innerHTML = ''; $('#tier').innerHTML = ''; $('#agree').innerHTML = '';
+    $('#advice').textContent = S.rows.length ? 'The dataset needs both positive and negative cases before a score can be calculated.' : 'Waiting for data…';
+    $('#drivers').innerHTML = ''; $('#similar').innerHTML = ''; $('#steps').innerHTML = ''; $('#percentile').innerHTML = ''; return;
+  }
+  const me = { age: P.age, sex: P.sex, f: P.f };
+  const score = scoreOf(me), tier = tierOf(score);
+  animateGauge(score);
+  $('#tier').innerHTML = tierPill(tier, tier !== lastTier ? 'pop' : ''); lastTier = tier;
+  $('#advice').textContent = TIER[tier].advice;
+  const ds = datasetScores(), below = ds.filter(s => s < score).length;
+  $('#percentile').innerHTML = `Scores higher than <b>${Math.round(pct(below, ds.length))}%</b> of the ${ds.length} records in the dataset.`;
+  renderAgree(me); renderPins(score); renderSteps(tier);
+  $('#miniScore').textContent = Math.round(score);
+  $('#miniTier').className = 'tier-pill ' + tier; $('#miniTier').innerHTML = TIER[tier].label;
+
+  const items = [];
+  FACT.forEach((f, i) => { if (P.f[i]) items.push({ label: f.label, d: score - scoreOf({ ...me, f: P.f.map((v, j) => j === i ? 0 : v) }) }); });
+  const mean = avg(S.rows.map(r => r.age)), ageAlt = scoreOf({ ...me, age: mean });
+  if (Math.abs(score - ageAlt) >= 1) items.push({ label: `Age ${P.age} vs average ${Math.round(mean)}`, d: score - ageAlt });
+  items.sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+  const top = items.slice(0, 7), mx = Math.max(5, ...top.map(x => Math.abs(x.d)));
+  $('#drivers').innerHTML = top.length ? top.map(x => `<div class="drv"><span>${esc(x.label)}</span><div class="bar"><i class="${x.d >= 0 ? 'up' : 'dn'}" data-w="${Math.min(50, 50 * Math.abs(x.d) / mx)}"></i></div><b>${x.d >= 0 ? '+' : '−'}${Math.abs(x.d).toFixed(0)}</b></div>`).join('') + '<p class="hint">Points gained or lost if that item were removed.</p>' : '<p class="empty">Nothing ticked yet. Pick habits or symptoms to see what drives the score.</p>';
+  requestAnimationFrame(() => requestAnimationFrame(() => $$('#drivers .bar i').forEach(i => { i.style.width = i.dataset.w + '%'; })));
+
+  const K = 15;
+  const near = S.rows.map(r => {
+    let d = r.sex === P.sex ? 0 : 1;
+    for (let i = 0; i < NF; i++) if (r.f[i] !== P.f[i]) d++;
+    return { d: d + Math.abs(r.age - P.age) / 10, y: r.y };
+  }).sort((a, b) => a.d - b.d).slice(0, K);
+  const yes = near.filter(r => r.y).length;
+  $('#similar').innerHTML = `<div class="sim-dots" role="img" aria-label="${yes} of ${near.length} similar records had lung cancer">${near.map((r, i) => `<i class="${r.y ? 'y' : 'n'}" style="--i:${i}"></i>`).join('')}</div>
+    <p style="font-size:13.5px"><b>${yes} of ${near.length}</b> of the most similar records had lung cancer (${Math.round(pct(yes, near.length))}%).</p>
+    <div class="legend"><span><i style="background:var(--pos)"></i>Lung cancer</span><span><i style="background:var(--neg)"></i>No lung cancer</span></div>`;
+}
+
+/* =====================================================================
+   5. Analytics: filters, helpers, charts
+   ===================================================================== */
+function view(except) {
+  return S.rows.filter(r => {
+    if (except !== 'sex' && F.sex !== null && r.sex !== F.sex) return false;
+    if (except !== 'band' && F.band !== null && r.band !== F.band) return false;
+    if (except !== 'burden' && F.burden !== null && r.bur !== F.burden) return false;
+    if (except !== 'flags') for (const [k, v] of F.flags) { if (except === 'flag:' + k) continue; if (r.f[FI[k]] !== v) return false; }
+    return true;
+  });
+}
+const charts = [];
+function mount(id, fn) { const c = { el: document.getElementById(id), fn, w: 0, drawn: false }; charts.push(c); return c; }
+function drawChart(c) {
+  const w = c.el.clientWidth; if (!w) return;
+  ANIM = !c.drawn && !REDUCED; c.w = w;
+  try { c.fn(c.el, w); } catch (e) { console.error(c.el.id, e); }
+  c.drawn = true; ANIM = false;
+}
+const ro = new ResizeObserver(() => charts.forEach(c => { const w = c.el.clientWidth; if (w && w !== c.w) drawChart(c); }));
+const at = (t, i = 0) => ANIM ? ` class="a-${t}" style="--i:${i}"` : '';
+const noData = el => { el.innerHTML = '<div class="nodata">No records match these filters.</div>'; };
+const tipA = html => `data-tip="${esc(html)}"`;
+const waiting = (el, msg) => { el.innerHTML = `<div class="nodata">${msg}</div>`; };
+
+function tween(el, to, fmt) {
+  if (!Number.isFinite(to)) { el.textContent = '–'; el._v = 0; return; }
+  const from = el._v || 0; el._v = to; cancelAnimationFrame(el._raf);
+  const t0 = performance.now(), dur = REDUCED ? 0 : 750;
+  const step = now => { const k = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(from + (to - from) * e); if (k < 1) el._raf = requestAnimationFrame(step); };
+  el._raf = requestAnimationFrame(step);
+}
+function buildKPIs() {
+  const defs = [['Records in view'], ['Lung cancer rate'], ['Average age'], ['Symptoms per person']];
+  $('#kpis').innerHTML = defs.map((d, i) => `<div class="kpi" style="--d:${i}"><span class="eyebrow">${d[0]}</span><span class="n" id="kn${i}">–</span><span class="s" id="ks${i}"></span></div>`).join('');
+}
+function renderKPIs() {
+  const v = view(), all = S.rows, n = v.length, yes = v.filter(r => r.y).length;
+  const rate = pct(yes, n), rateAll = pct(all.filter(r => r.y).length, all.length);
+  tween($('#kn0'), n, x => Math.round(x));
+  tween($('#kn1'), n ? rate : NaN, x => x.toFixed(1) + '%');
+  tween($('#kn2'), n ? avg(v.map(r => r.age)) : NaN, x => x.toFixed(1));
+  tween($('#kn3'), n ? avg(v.map(r => r.bur)) : NaN, x => x.toFixed(1));
+  $('#ks0').textContent = `of ${all.length} in the dataset`;
+  $('#ks1').textContent = `${yes} positive · overall ${rateAll.toFixed(1)}%`;
+  $('#ks2').textContent = `overall ${avg(all.map(r => r.age)).toFixed(1)}`;
+  $('#ks3').textContent = `of 6 · overall ${avg(all.map(r => r.bur)).toFixed(1)}`;
+}
+function renderInsights() {
+  const rows = view(), n = rows.length, out = [];
+  if (n < 10) { $('#insights').innerHTML = ''; return; }
+  const stat = FACT.map((f, i) => {
+    const on = rows.filter(r => r.f[i]), off = rows.filter(r => !r.f[i]);
+    return { f, on: on.length, off: off.length, ron: pct(on.filter(r => r.y).length, on.length), roff: pct(off.filter(r => r.y).length, off.length) };
+  }).filter(o => o.on >= 8 && o.off >= 8).sort((a, b) => (b.ron - b.roff) - (a.ron - a.roff));
+  if (stat.length) { const o = stat[0]; out.push(['Strongest signal', o.f.label, `${o.ron.toFixed(0)}% had lung cancer when present, ${o.roff.toFixed(0)}% when absent (+${(o.ron - o.roff).toFixed(0)} points).`]); }
+  const bandStat = BANDS.map((b, i) => { const rs = rows.filter(r => r.band === i); return { b, n: rs.length, rate: pct(rs.filter(r => r.y).length, rs.length) }; }).filter(x => x.n >= 10);
+  if (bandStat.length > 1) { const hi = [...bandStat].sort((a, b) => b.rate - a.rate)[0], lo = [...bandStat].sort((a, b) => a.rate - b.rate)[0]; out.push(['Age pattern', `Peaks at ${hi.b}`, `${hi.rate.toFixed(0)}% positive (n=${hi.n}). Lowest is ${lo.b} at ${lo.rate.toFixed(0)}%.`]); }
+  const hi3 = rows.filter(r => r.bur >= 3), lo3 = rows.filter(r => r.bur < 3);
+  if (hi3.length >= 8 && lo3.length >= 8) out.push(['Symptom threshold', '3 or more symptoms', `${pct(hi3.filter(r => r.y).length, hi3.length).toFixed(0)}% positive, against ${pct(lo3.filter(r => r.y).length, lo3.length).toFixed(0)}% with fewer.`]);
+  const yes = rows.filter(r => r.y).length, no = n - yes;
+  if (yes && no) { const ratio = Math.max(yes, no) / Math.min(yes, no); out.push(['Class balance', `${ratio.toFixed(1)} : 1`, ratio > 3 ? `${yes > no ? 'Positive' : 'Negative'} cases dominate, so accuracy alone can mislead. Check sensitivity, specificity and AUC.` : 'The two outcomes are reasonably balanced.']); }
+  $('#insights').innerHTML = out.map(([k, big, text], i) => `<div class="insight" style="--d:${i}"><span class="eyebrow">${k}</span><span class="big">${esc(big)}</span><p>${esc(text)}</p></div>`).join('');
+}
+function renderHealth() {
+  const i = S.info, all = S.rows, yes = all.filter(r => r.y).length;
+  if (!i) return;
+  const item = (b, label, tag, warn) => `<div class="hitem"><b>${b}</b><span>${label}</span>${tag ? `<span class="tag ${warn ? 'warn' : ''}">${tag}</span>` : ''}</div>`;
+  $('#health').innerHTML = `<div class="health">
+    ${item(all.length, 'Records used', S.added ? `includes ${S.added} added this session` : '')}
+    ${item(i.rawCount, 'Rows in the file', '')}
+    ${item(i.dupesFound, 'Duplicate rows', i.dupesRemoved ? 'removed' : i.dupesFound ? 'kept (switch in Data)' : 'none', !i.dupesRemoved && i.dupesFound > 0)}
+    ${item(i.invalid, 'Rows with missing values', i.invalid ? 'dropped' : 'none', i.invalid > 0)}
+    ${item(16, 'Columns', '1 outcome · 15 inputs')}
+    ${item(all.length ? Math.min(...all.map(r => r.age)) + '–' + Math.max(...all.map(r => r.age)) : '–', 'Age range, years', '')}
+    ${item(`${pct(yes, all.length).toFixed(0)} / ${pct(all.length - yes, all.length).toFixed(0)}`, 'Percent positive / negative', pct(yes, all.length) > 75 || pct(yes, all.length) < 25 ? 'imbalanced' : 'balanced', pct(yes, all.length) > 75 || pct(yes, all.length) < 25)}
+  </div>`;
+}
+
+/* ----- chart: outcome donut ----- */
+function chartOutcome(el, w) {
+  const rows = view();
+  if (!rows.length) return noData(el);
+  const n = rows.length, yes = rows.filter(r => r.y).length, no = n - yes, r = 70, C = 2 * Math.PI * r, gap = 3;
+  const ya = C * yes / n, na = C * no / n;
+  const arcY = yes ? `<circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--pos)" stroke-width="24" stroke-dasharray="${Math.max(0, ya - (no ? gap : 0))} ${C}" transform="rotate(-90 100 100)" ${ANIM ? `class="a-donut" style="--c:${C}"` : ''}/>` : '';
+  const arcN = no ? `<circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--neg)" stroke-width="24" stroke-dasharray="${Math.max(0, na - (yes ? gap : 0))} ${C}" stroke-dashoffset="${-ya}" transform="rotate(-90 100 100)" ${ANIM ? `class="a-donut" style="--c:${C}"` : ''}/>` : '';
+  el.innerHTML = `<svg viewBox="0 0 200 200" style="max-width:220px;margin:0 auto" role="img" aria-label="${yes} with lung cancer, ${no} without">
+    <circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--surface2)" stroke-width="24"/>${arcY}${arcN}
+    <text x="100" y="104" text-anchor="middle" style="font:500 30px var(--f-mono);fill:var(--ink)">${pct(yes, n).toFixed(0)}%</text>
+    <text x="100" y="124" text-anchor="middle" class="ax">lung cancer</text></svg>
+    <div class="legend" style="justify-content:center;margin-top:14px"><span><i style="background:var(--pos)"></i>Yes ${yes}</span><span><i style="background:var(--neg)"></i>No ${no}</span></div>`;
+}
+
+/* ----- chart: age histogram with KDE ----- */
+function chartHist(el, w) {
+  const rows = view();
+  if (rows.length < 2) { $('#histStats').innerHTML = ''; return noData(el); }
+  const ages = rows.map(r => r.age), mn = Math.min(...ages), mx = Math.max(...ages);
+  const lo = Math.floor(mn / 5) * 5, hi = Math.ceil((mx + 1) / 5) * 5, nb = (hi - lo) / 5;
+  const bins = Array.from({ length: nb }, (_, i) => ({ x0: lo + i * 5, yes: 0, no: 0 }));
+  rows.forEach(r => { const b = bins[Math.min(nb - 1, Math.floor((r.age - lo) / 5))]; r.y ? b.yes++ : b.no++; });
+  const H = 240, m = { l: 34, r: 8, t: 14, b: 28 };
+  const top = niceMax(Math.max(...bins.map(b => b.yes + b.no), 1));
+  const X = a => m.l + (w - m.l - m.r) * (a - lo) / (hi - lo), Y = v => m.t + (H - m.t - m.b) * (1 - v / top);
+  const bw = (w - m.l - m.r) / nb;
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Age distribution">`;
+  for (let k = 0; k <= 4; k++) { const v = top * k / 4; s += `<line class="gl" x1="${m.l}" x2="${w - m.r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`; }
+  bins.forEach((b, i) => {
+    const t = b.yes + b.no, x = X(b.x0) + 1.5, ww = bw - 3;
+    const tip = `<b>Age ${b.x0}–${b.x0 + 4}</b><br>Lung cancer: ${b.yes}<br>No lung cancer: ${b.no}<br>${t} records`;
+    s += `<g ${tipA(tip)}><rect x="${x - 1.5}" y="${m.t}" width="${bw}" height="${H - m.t - m.b}" fill="transparent"/>`;
+    if (b.yes) s += `<rect${at('grow', i)} x="${x}" y="${Y(b.yes)}" width="${ww}" height="${Y(0) - Y(b.yes)}" rx="3" fill="var(--pos)"/>`;
+    if (b.no) { const t0 = Y(t), bt = b.yes ? Y(b.yes) - 2 : Y(0); s += `<rect${at('grow', i)} x="${x}" y="${t0}" width="${ww}" height="${Math.max(1, bt - t0)}" rx="3" fill="var(--neg)"/>`; }
+    s += `<text class="ax" x="${X(b.x0)}" y="${H - 8}" text-anchor="middle">${b.x0}</text></g>`;
+  });
+  s += `<text class="ax" x="${X(hi)}" y="${H - 8}" text-anchor="middle">${hi}</text>`;
+  // KDE (Silverman bandwidth), scaled to counts per bin
+  const n = ages.length, mean = avg(ages), sdv = sd(ages) || 1, h = 1.06 * sdv * Math.pow(n, -0.2);
+  let path = '';
+  for (let a = lo; a <= hi + 0.01; a += (hi - lo) / 80) {
+    let d = 0; for (const x of ages) d += Math.exp(-0.5 * ((a - x) / h) ** 2);
+    const cnt = d / (n * h * Math.sqrt(2 * Math.PI)) * n * 5;
+    path += (path ? 'L' : 'M') + X(a).toFixed(1) + ' ' + Y(Math.min(top, cnt)).toFixed(1);
+  }
+  s += `<path${ANIM ? ' class="a-draw"' : ''} pathLength="1" d="${path}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" opacity=".75"/>`;
+  const med = median(ages);
+  s += `<line x1="${X(mean)}" x2="${X(mean)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--accent)" stroke-width="2"/><line x1="${X(med)}" x2="${X(med)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink2)" stroke-width="2" stroke-dasharray="4 4"/>`;
+  el.innerHTML = s + '</svg><div class="legend"><span><i style="background:var(--pos)"></i>Lung cancer</span><span><i style="background:var(--neg)"></i>No lung cancer</span><span><u style="border-color:var(--ink)"></u>Smoothed curve</span><span><u style="border-color:var(--accent)"></u>Mean</span><span><u style="border-color:var(--ink2);border-top-style:dashed"></u>Median</span></div>';
+  $('#histStats').innerHTML = [['Minimum', mn], ['Maximum', mx], ['Mean', mean.toFixed(1)], ['Median', med % 1 ? med.toFixed(1) : med], ['Std. deviation', sdv.toFixed(1)]].map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+}
+
+/* ----- chart: outcome by age band ----- */
+function chartAge(el, w) {
+  const rows = view('band');
+  if (!rows.length) return noData(el);
+  const H = 250, m = { l: 34, r: 6, t: 26, b: 30 };
+  const bands = BANDS.map((b, i) => { const rs = rows.filter(r => r.band === i), yes = rs.filter(r => r.y).length; return { b, i, n: rs.length, yes, no: rs.length - yes }; });
+  const max = niceMax(Math.max(...bands.map(x => x.n), 1));
+  const y = v => m.t + (H - m.t - m.b) * (1 - v / max);
+  const slot = (w - m.l - m.r) / bands.length, bw = Math.min(46, slot * .62);
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Outcome by age band">`;
+  for (let k = 0; k <= 4; k++) { const v = max * k / 4; s += `<line class="gl" x1="${m.l}" x2="${w - m.r}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`; }
+  bands.forEach(b => {
+    const cx = m.l + slot * (b.i + .5), x0 = cx - bw / 2, dim = F.band !== null && F.band !== b.i ? ' dim' : '', rate = pct(b.yes, b.n);
+    const tip = `<b>${b.b}</b><br>Lung cancer: ${b.yes} (${rate.toFixed(0)}%)<br>No lung cancer: ${b.no}<br>${b.n} records`;
+    s += `<g class="mk${dim}" data-f="band:${b.i}" ${tipA(tip)}><rect class="hit" x="${cx - slot / 2}" y="${m.t - 16}" width="${slot}" height="${H - m.t - m.b + 16}" fill="transparent" rx="6"/>`;
+    if (b.yes) s += `<rect${at('grow', b.i)} x="${x0}" y="${y(b.yes)}" width="${bw}" height="${y(0) - y(b.yes)}" rx="3" fill="var(--pos)"/>`;
+    if (b.no) { const top = y(b.n), bot = b.yes ? y(b.yes) - 2 : y(0); s += `<rect${at('grow', b.i)} x="${x0}" y="${top}" width="${bw}" height="${Math.max(1, bot - top)}" rx="3" fill="var(--neg)"/>`; }
+    if (b.n) s += `<text class="vl" x="${cx}" y="${y(b.n) - 6}" text-anchor="middle">${rate.toFixed(0)}%</text>`;
+    s += `<text class="lb${F.band === b.i ? ' sel' : ''}" x="${cx}" y="${H - 8}" text-anchor="middle">${slot < 60 ? b.b.replace('Under ', '<').replace(/–\d+/, '') : b.b}</text></g>`;
+  });
+  el.innerHTML = s + '</svg><div class="legend"><span><i style="background:var(--pos)"></i>Lung cancer</span><span><i style="background:var(--neg)"></i>No lung cancer</span></div>';
+}
+
+/* ----- chart: sex ----- */
+function chartSex(el, w) {
+  const rows = view('sex');
+  if (!rows.length) return noData(el);
+  const items = [{ v: 0, name: 'Female' }, { v: 1, name: 'Male' }].map(o => { const rs = rows.filter(r => r.sex === o.v); return { ...o, rs, n: rs.length, yes: rs.filter(r => r.y).length }; });
+  const rowH = 64, H = rowH * 2 + 6;
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Lung cancer rate by sex">`;
+  items.forEach((o, i) => {
+    const y0 = i * rowH + 4, rate = pct(o.yes, o.n), yesW = w * rate / 100, dim = F.sex !== null && F.sex !== o.v ? ' dim' : '';
+    const tip = `<b>${o.name}</b><br>Lung cancer: ${o.yes} (${rate.toFixed(0)}%)<br>No lung cancer: ${o.n - o.yes}<br>${o.n} records`;
+    s += `<g class="mk${dim}" data-f="sex:${o.v}" ${tipA(tip)}><rect class="hit" x="0" y="${y0 - 4}" width="${w}" height="${rowH - 4}" fill="transparent" rx="8"/>
+      <text class="lb${F.sex === o.v ? ' sel' : ''}" x="0" y="${y0 + 14}">${o.name}</text>
+      <text class="vl" x="${w}" y="${y0 + 14}" text-anchor="end">${o.n ? rate.toFixed(0) + '%' : '–'} · n=${o.n}</text>`;
+    if (o.n) {
+      if (o.yes) s += `<rect${at('growx', i)} x="0" y="${y0 + 22}" width="${Math.max(3, yesW - (o.n > o.yes ? 1 : 0))}" height="14" rx="3" fill="var(--pos)"/>`;
+      if (o.n > o.yes) s += `<rect${at('growx', i)} x="${yesW + 1}" y="${y0 + 22}" width="${Math.max(3, w - yesW - 1)}" height="14" rx="3" fill="var(--neg)"/>`;
+    }
+    s += '</g>';
+  });
+  const st = (v, f) => { const rs = rows.filter(r => r.sex === v); return rs.length ? f(rs) : '–'; };
+  const smk = r => Math.round(pct(r.filter(x => x.f[0]).length, r.length)) + '%';
+  el.innerHTML = s + `</svg><div class="statlist" style="display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-size:13px">
+    ${[['', 'Female', 'Male', true], ['Average age', st(0, r => avg(r.map(x => x.age)).toFixed(1)), st(1, r => avg(r.map(x => x.age)).toFixed(1))], ['Symptoms per person', st(0, r => avg(r.map(x => x.bur)).toFixed(1)), st(1, r => avg(r.map(x => x.bur)).toFixed(1))], ['Smokers', st(0, smk), st(1, smk)]].map(([a, b, c, head]) => `<div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:baseline;${head ? 'font:500 11px var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)' : ''}"><span style="color:var(--ink2)">${a}</span><b style="font:${head ? 'inherit' : '500 13px var(--f-mono)'};min-width:5.5em;text-align:right">${b}</b><b style="font:${head ? 'inherit' : '500 13px var(--f-mono)'};min-width:5.5em;text-align:right">${c}</b></div>`).join('')}</div>`;
+}
+
+/* ----- chart: factor dumbbell ----- */
+function chartFactor(el, w) {
+  if (!view().length && !view('flags').length) return noData(el);
+  const lw = w < 520 ? 148 : 172, rw = w < 420 ? 0 : 58, x0 = lw, x1 = w - rw - 10, rowH = 28, top = 22;
+  const stat = FACT.map((f, i) => {
+    const rows = view('flag:' + f.key);
+    const on = rows.filter(r => r.f[i] === 1), off = rows.filter(r => r.f[i] === 0);
+    const ron = pct(on.filter(r => r.y).length, on.length), roff = pct(off.filter(r => r.y).length, off.length);
+    return { f, i, on: on.length, off: off.length, ron, roff, gap: (on.length && off.length) ? ron - roff : -999 };
+  }).sort((a, b) => b.gap - a.gap);
+  const rates = stat.filter(o => o.gap > -999).flatMap(o => [o.ron, o.roff]);
+  const lo = rates.length ? Math.max(0, Math.floor((Math.min(...rates) - 4) / 20) * 20) : 0;
+  const H = top + stat.length * rowH + 6, X = v => x0 + (x1 - x0) * (v - lo) / (100 - lo);
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Lung cancer rate with and without each factor">`;
+  for (let v = lo; v <= 100; v += (100 - lo > 60 ? 25 : 10)) s += `<line class="gl" x1="${X(v)}" x2="${X(v)}" y1="${top - 6}" y2="${H - 4}"/><text class="ax" x="${X(v)}" y="10" text-anchor="middle">${v}%</text>`;
+  stat.forEach((o, k) => {
+    const y = top + k * rowH + rowH / 2, sel = F.flags.get(o.f.key) === 1, small = o.on < 5 || o.off < 5;
+    const tip = `<b>${esc(o.f.label)}</b><br>Present: ${o.on ? o.ron.toFixed(0) + '%' : '–'} with lung cancer (n=${o.on})<br>Absent: ${o.off ? o.roff.toFixed(0) + '%' : '–'} (n=${o.off})` + (small ? '<br>Small group, read with care' : '');
+    s += `<g class="mk" data-f="flag:${esc(o.f.key)}" ${tipA(tip)}><rect class="hit" x="0" y="${y - rowH / 2}" width="${w}" height="${rowH}" fill="${sel ? 'var(--accent-soft)' : 'transparent'}" rx="6"/><text class="lb${sel ? ' sel' : ''}" x="6" y="${y + 4}">${esc(o.f.label)}</text>`;
+    if (o.on && o.off) {
+      s += `<line${at('fade', k)} x1="${X(o.roff)}" x2="${X(o.ron)}" y1="${y}" y2="${y}" stroke="var(--muted)" stroke-width="2" opacity=".6"/>
+        <circle${at('pop', k)} cx="${X(o.roff)}" cy="${y}" r="6" fill="var(--surface)" stroke="var(--neg)" stroke-width="2.5"/>
+        <circle${at('pop', k)} cx="${X(o.ron)}" cy="${y}" r="6" fill="var(--pos)" stroke="var(--surface)" stroke-width="2"${small ? ' opacity=".5"' : ''}/>`;
+      if (rw) s += `<text class="vl" x="${w - 2}" y="${y + 4}" text-anchor="end">${o.gap >= 0 ? '+' : '−'}${Math.abs(o.gap).toFixed(0)} pts</text>`;
+    } else s += `<text class="ax" x="${x0 + 6}" y="${y + 4}">no comparison in view</text>`;
+    s += '</g>';
+  });
+  el.innerHTML = s + '</svg>';
+}
+
+/* ----- chart: symptom burden ----- */
+function chartBurden(el, w) {
+  const rows = view('burden');
+  if (!rows.length) return noData(el);
+  const H = 330, m = { l: 34, r: 6, t: 24, b: 40 }, y = v => m.t + (H - m.t - m.b) * (1 - v / 100);
+  const data = [0,1,2,3,4,5,6].map(k => { const rs = rows.filter(r => r.bur === k); return { k, n: rs.length, yes: rs.filter(r => r.y).length, rate: pct(rs.filter(r => r.y).length, rs.length) }; });
+  const slot = (w - m.l - m.r) / 7, bw = Math.min(30, slot * .64);
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="Lung cancer rate by number of symptoms">`;
+  [0, 50, 100].forEach(v => { s += `<line class="gl" x1="${m.l}" x2="${w - m.r}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`; });
+  data.forEach(d => {
+    const cx = m.l + slot * (d.k + .5), dim = F.burden !== null && F.burden !== d.k ? ' dim' : '';
+    const tip = `<b>${d.k} symptom${d.k === 1 ? '' : 's'}</b><br>${d.n ? d.rate.toFixed(0) + '% with lung cancer' : 'No records'}<br>${d.yes} of ${d.n} records`;
+    s += `<g class="mk${dim}" data-f="burden:${d.k}" ${tipA(tip)}><rect class="hit" x="${cx - slot / 2}" y="${m.t - 14}" width="${slot}" height="${H - m.t - m.b + 14}" fill="transparent" rx="6"/>`;
+    if (d.n) s += `<rect${at('grow', d.k)} x="${cx - bw / 2}" y="${y(d.rate)}" width="${bw}" height="${Math.max(2, y(0) - y(d.rate))}" rx="3" fill="var(--pos)"/><text class="vl" x="${cx}" y="${y(d.rate) - 6}" text-anchor="middle">${d.rate.toFixed(0)}</text>`;
+    s += `<text class="lb${F.burden === d.k ? ' sel' : ''}" x="${cx}" y="${H - 22}" text-anchor="middle">${d.k}</text><text class="ax" x="${cx}" y="${H - 6}" text-anchor="middle">n=${d.n}</text></g>`;
+  });
+  el.innerHTML = s + '</svg>';
+}
+
+/* ----- generic horizontal bars (prevalence, importance) ----- */
+function hbars(el, w, items, o = {}) {
+  if (!items.length) return noData(el);
+  const lw = w < 520 ? 148 : 172, rw = 54, rowH = 26, x0 = lw, x1 = w - rw, max = o.max || Math.max(...items.map(i => i.v), 1), H = items.length * rowH + 4;
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="${esc(o.aria || 'Bars')}">`;
+  items.forEach((it, k) => {
+    const y = k * rowH + rowH / 2, len = (x1 - x0) * it.v / max, sel = it.sel;
+    s += `<g class="${it.f ? 'mk' : ''}" ${it.f ? `data-f="${esc(it.f)}"` : ''} ${tipA(it.tip || it.label)}><rect class="hit" x="0" y="${y - rowH / 2}" width="${w}" height="${rowH}" fill="${sel ? 'var(--accent-soft)' : 'transparent'}" rx="6"/>
+      <text class="lb${sel ? ' sel' : ''}" x="6" y="${y + 4}">${esc(it.label)}</text>
+      <rect${at('growx', k)} x="${x0}" y="${y - 6}" width="${Math.max(2, len)}" height="12" rx="3" fill="${o.color || 'var(--accent)'}"/>
+      <text class="vl" x="${w - 2}" y="${y + 4}" text-anchor="end">${(o.fmt || (v => v.toFixed(0) + '%'))(it.v)}</text></g>`;
+  });
+  el.innerHTML = s + '</svg>';
+}
+function chartPrev(el, w) {
+  const rows = view();
+  if (!rows.length) return noData(el);
+  const items = FACT.map((f, i) => { const c = rows.filter(r => r.f[i]).length; return { label: f.label, v: pct(c, rows.length), f: 'flag:' + f.key, sel: F.flags.get(f.key) === 1, tip: `<b>${esc(f.label)}</b><br>${c} of ${rows.length} records (${pct(c, rows.length).toFixed(1)}%)` }; });
+  const male = rows.filter(r => r.sex).length;
+  items.push({ label: 'Male', v: pct(male, rows.length), f: 'sex:1', sel: F.sex === 1, tip: `<b>Male</b><br>${male} of ${rows.length} records (${pct(male, rows.length).toFixed(1)}%)` });
+  items.sort((a, b) => b.v - a.v);
+  hbars(el, w, items, { max: 100, aria: 'Prevalence of each factor' });
+}
+
+/* ----- generic diverging bars (model odds ratios, correlations) ----- */
+function divBars(el, w, items, o = {}) {
+  if (!items.length) return noData(el);
+  const lw = w < 520 ? 148 : 172, rw = 52, rowH = 26, top = 18, x0 = lw, x1 = w - rw, mid = (x0 + x1) / 2;
+  const mx = o.max || Math.max(...items.map(i => Math.abs(i.v)), 0.1), H = top + items.length * rowH + 4;
+  let s = `<svg viewBox="0 0 ${w} ${H}" role="img" aria-label="${esc(o.aria || 'Diverging bars')}">`;
+  s += `<line class="gl" x1="${mid}" x2="${mid}" y1="${top - 6}" y2="${H - 2}" style="stroke:var(--muted)"/><text class="ax" x="${mid}" y="9" text-anchor="middle">${o.zero || 'no effect'}</text>`;
+  items.forEach((it, k) => {
+    const y = top + k * rowH + rowH / 2, len = (x1 - x0) / 2 * Math.abs(it.v) / mx, pos = it.v >= 0;
+    s += `<g ${tipA(it.tip)}><rect x="0" y="${y - rowH / 2}" width="${w}" height="${rowH}" fill="transparent"/>
+      <text class="lb" x="6" y="${y + 4}">${esc(it.label)}</text>
+      <rect ${ANIM ? `class="a-growx" style="--i:${k};transform-origin:${pos ? '0%' : '100%'} 50%"` : ''} x="${pos ? mid : mid - len}" y="${y - 6}" width="${Math.max(2, len)}" height="12" rx="3" fill="var(--${pos ? 'pos' : 'neg'})"/>
+      <text class="vl" x="${w - 2}" y="${y + 4}" text-anchor="end">${o.fmt(it.v)}</text></g>`;
+  });
+  el.innerHTML = s + '</svg>';
+}
+/* ----- correlations ----- */
+const VARS = [{ name: 'Sex (male)', short: 'Sex', get: r => r.sex }, { name: 'Age', short: 'Age', get: r => r.age }, ...FACT.map((f, i) => ({ name: f.label, short: SHORT[f.key], get: r => r.f[i], bin: true, key: f.key })), { name: 'Lung cancer', short: 'Cancer', get: r => r.y }];
+function corrMatrix(rows) {
+  const n = rows.length, cols = VARS.map(v => rows.map(v.get)), mean = cols.map(avg), sdv = cols.map((c, i) => Math.sqrt(avg(c.map(x => (x - mean[i]) ** 2))));
+  return VARS.map((_, a) => VARS.map((__, b) => {
+    if (!n || !sdv[a] || !sdv[b]) return a === b ? 1 : 0;
+    let s = 0; for (let i = 0; i < n; i++) s += (cols[a][i] - mean[a]) * (cols[b][i] - mean[b]);
+    return s / n / (sdv[a] * sdv[b]);
+  }));
+}
+function chartHeat(el, w) {
+  const rows = view();
+  if (rows.length < 5) return noData(el);
+  const M = corrMatrix(rows), n = VARS.length, lw = w < 560 ? 62 : 150, topM = w < 560 ? 62 : 74;
+  const cs = Math.max(14, Math.min(36, (w - lw - 26) / n)), W = lw + cs * n + 26, H = topM + cs * n + 4;
+  const wide = cs >= 30;
+  let s = `<svg viewBox="0 0 ${W} ${H}" style="max-width:${W}px" role="img" aria-label="Correlation heatmap">`;
+  VARS.forEach((v, i) => {
+    s += `<text class="ax" transform="translate(${lw + cs * i + cs / 2 + 4} ${topM - 6}) rotate(-50)" style="font-size:${cs < 20 ? 9.5 : 11}px">${esc(v.short)}</text>`;
+    s += `<text class="ax" x="${lw - 6}" y="${topM + cs * i + cs / 2 + 4}" text-anchor="end" style="font-size:${cs < 20 ? 9.5 : 11.5}px">${esc(w < 560 ? v.short : v.name)}</text>`;
+  });
+  M.forEach((row, a) => row.forEach((val, b) => {
+    const mix = Math.min(100, Math.abs(val) * 125), color = `color-mix(in srgb, var(--${val >= 0 ? 'pos' : 'neg'}) ${mix}%, var(--surface2))`;
+    const tip = `<b>${esc(VARS[a].name)} × ${esc(VARS[b].name)}</b><br>r = ${val.toFixed(2)}`;
+    const i = a + b;
+    s += `<g ${tipA(tip)}><rect ${ANIM ? 'class="a-fade" ' : ''}x="${lw + cs * b + 1}" y="${topM + cs * a + 1}" width="${cs - 2}" height="${cs - 2}" rx="${cs > 20 ? 4 : 2}" style="${ANIM ? `--i:${(i / 3).toFixed(1)};` : ''}fill:${color}"/>`;
+    if (wide && a !== b) s += `<text x="${lw + cs * b + cs / 2}" y="${topM + cs * a + cs / 2 + 4}" text-anchor="middle" style="font:500 10px var(--f-mono);fill:${Math.abs(val) > 0.45 ? 'var(--on-strong)' : 'var(--ink2)'};pointer-events:none">${val.toFixed(2).replace(/^(-?)0\./, '$1.')}</text>`;
+    s += '</g>';
+  }));
+  const L = n - 1;
+  s += `<rect x="${lw + 0.5}" y="${topM + cs * L + 0.5}" width="${cs * n - 1}" height="${cs - 1}" rx="4" fill="none" stroke="var(--ink)" stroke-width="1.5" opacity=".7"/><rect x="${lw + cs * L + 0.5}" y="${topM + 0.5}" width="${cs - 1}" height="${cs * n - 1}" rx="4" fill="none" stroke="var(--ink)" stroke-width="1.5" opacity=".7"/>`;
+  el.innerHTML = s + '</svg>';
+}
+function targetCorr(rows) {
+  const M = corrMatrix(rows), L = VARS.length - 1;
+  return VARS.slice(0, L).map((v, i) => ({ label: v.name, v: M[i][L], bin: v.bin, idx: i }));
+}
+function chartCorr(el, w) {
+  const rows = view();
+  if (rows.length < 5) return noData(el);
+  const items = targetCorr(rows).sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).map(i => ({ ...i, tip: `<b>${esc(i.label)}</b><br>r = ${i.v.toFixed(2)} with lung cancer` }));
+  divBars(el, w, items, { fmt: v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2), zero: 'r = 0', aria: 'Correlation with lung cancer', max: Math.max(0.3, ...items.map(i => Math.abs(i.v))) });
+}
+function chartSmall(el, w) {
+  const rows = view();
+  if (rows.length < 10) return noData(el);
+  const yes = rows.filter(r => r.y), no = rows.filter(r => !r.y);
+  const top = targetCorr(rows).filter(i => i.bin || i.idx === 0).sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).slice(0, 9);
+  const cols = w >= 760 ? 3 : w >= 480 ? 2 : 1, cw = (w - (cols - 1) * 16) / cols, H = 150, m = { l: 4, r: 4, t: 18, b: 26 };
+  const Y = v => m.t + (H - m.t - m.b) * (1 - v / 100);
+  const html = top.map((it, k) => {
+    const v = VARS[it.idx], names = it.idx === 0 ? ['Female', 'Male'] : ['Absent', 'Present'];
+    const share = (rs, val) => rs.length ? pct(rs.filter(r => v.get(r) === val).length, rs.length) : 0;
+    const gw = (cw - m.l - m.r) / 2, bw = Math.min(34, gw * .34);
+    let s = `<svg viewBox="0 0 ${cw} ${H}" role="img" aria-label="${esc(v.name)} by outcome">`;
+    [0, 50, 100].forEach(g => { s += `<line class="gl" x1="${m.l}" x2="${cw - m.r}" y1="${Y(g)}" y2="${Y(g)}"/>`; });
+    [0, 1].forEach(val => {
+      const cx = m.l + gw * (val + .5), a = share(yes, val), b = share(no, val);
+      [[a, 'pos', -1, `With lung cancer: ${a.toFixed(0)}% answered “${names[val]}”`], [b, 'neg', 1, `Without lung cancer: ${b.toFixed(0)}% answered “${names[val]}”`]].forEach(([pv, c, dir, tip], j) => {
+        const x = cx + (dir < 0 ? -bw - 1.5 : 1.5);
+        s += `<g ${tipA(`<b>${esc(v.name)}</b><br>${tip}`)}><rect${at('grow', k + val)} x="${x}" y="${Y(pv)}" width="${bw}" height="${Math.max(2, Y(0) - Y(pv))}" rx="3" fill="var(--${c})"/><text class="vl" x="${x + bw / 2}" y="${Y(pv) - 4}" text-anchor="middle" style="font-size:10.5px">${pv.toFixed(0)}</text></g>`;
+      });
+      s += `<text class="lb" x="${cx}" y="${H - 6}" text-anchor="middle" style="font-size:12px">${names[val]}</text>`;
+    });
+    return `<div class="sm"><h4>${esc(v.name)}<span>r = ${it.v >= 0 ? '+' : '−'}${Math.abs(it.v).toFixed(2)}</span></h4>${s}</svg></div>`;
+  }).join('');
+  el.innerHTML = `<div class="small-grid" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${html}</div>`;
+}
+
+/* ----- active filters + slicers ----- */
+function renderFilterChips() {
+  const chips = [];
+  if (F.sex !== null) chips.push(['sex', 'Sex: ' + (F.sex ? 'male' : 'female')]);
+  if (F.band !== null) chips.push(['band', 'Age ' + BANDS[F.band]]);
+  if (F.burden !== null) chips.push(['burden', F.burden + ' symptom' + (F.burden === 1 ? '' : 's')]);
+  F.flags.forEach((v, k) => chips.push(['flag:' + k, FACT[FI[k]].label + (v ? ' present' : ' absent')]));
+  $('#activeFilters').innerHTML = chips.map(([k, l]) => `<span class="fchip">${esc(l)}<button type="button" data-clear="${esc(k)}" aria-label="Remove filter ${esc(l)}">×</button></span>`).join('') + (chips.length > 1 ? '<button type="button" class="link-btn" data-clear="all">Clear all</button>' : '');
+  $('#filterHint').hidden = chips.length > 0;
+  $$('#slSex button').forEach(b => b.setAttribute('aria-pressed', String((F.sex === null ? '' : String(F.sex)) === b.dataset.v)));
+  const sm = F.flags.get('SMOKING');
+  $$('#slSmoke button').forEach(b => b.setAttribute('aria-pressed', String((sm === undefined ? '' : String(sm)) === b.dataset.v)));
+}
+function renderAnalytics() {
+  if (!S.rows.length) return;
+  renderFilterChips(); renderKPIs(); renderInsights(); renderHealth();
+  charts.forEach(c => { if (c.el.closest('#view-analytics')) drawChart(c); });
+}
+
+/* =====================================================================
+   7. Wiring
+   ===================================================================== */
+function renderAll() {
+  setStatus(); renderResult();
+  if (VIEW === 'analytics') renderAnalytics();
+  updateTrainUI(); updateMini();
+}
+function updateMini() {
+  const on = VIEW === 'check' && S.rows.length && Object.keys(S.models).length;
+  $('#minibar').classList.toggle('on', !!on); document.body.classList.toggle('has-mini', !!on);
+}
+function moveInd() {
+  const b = $('.tabs button[aria-selected="true"]'), ind = $('#tabInd');
+  if (b) { ind.style.left = b.offsetLeft + 'px'; ind.style.width = b.offsetWidth + 'px'; }
+}
+function setView(v, push) {
+  VIEW = v;
+  ['check', 'analytics'].forEach(n => {
+    $('#view-' + n).hidden = n !== v;
+    $('#tab-' + n).setAttribute('aria-selected', n === v ? 'true' : 'false');
+  });
+  if (push) { try { history.replaceState(null, '', '#' + v); } catch (e) { /* sandboxed */ } }
+  moveInd(); updateMini();
+  requestAnimationFrame(() => { if (v === 'analytics') renderAnalytics(); });
+}
+function setPage(p) {
+  PAGE = p;
+  $$('#subnav button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.page === p)));
+  ['overview', 'patterns', 'corr'].forEach(n => { $('#ap-' + n).hidden = n !== p; });
+  requestAnimationFrame(renderAnalytics);
+}
+function toggleFilter(spec) {
+  const i = spec.indexOf(':'), k = spec.slice(0, i), v = spec.slice(i + 1);
+  if (k === 'band') F.band = F.band === +v ? null : +v;
+  else if (k === 'sex') F.sex = F.sex === +v ? null : +v;
+  else if (k === 'burden') F.burden = F.burden === +v ? null : +v;
+  else if (k === 'flag') { F.flags.get(v) === 1 ? F.flags.delete(v) : F.flags.set(v, 1); }
+  renderAnalytics();
+}
+function clearFilter(k) {
+  if (k === 'all') { F.sex = F.band = F.burden = null; F.flags.clear(); }
+  else if (k === 'sex') F.sex = null; else if (k === 'band') F.band = null; else if (k === 'burden') F.burden = null;
+  else if (k.startsWith('flag:')) F.flags.delete(k.slice(5));
+  renderAnalytics();
+}
+function showTip(e, html) {
+  const t = $('#tip'); t.innerHTML = html; t.hidden = false;
+  const r = t.getBoundingClientRect();
+  t.style.left = Math.max(8, Math.min(innerWidth - r.width - 8, e.clientX + 14)) + 'px';
+  t.style.top = Math.max(8, Math.min(innerHeight - r.height - 8, e.clientY + 14)) + 'px';
+}
+function readFile(f) {
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => { if (ingest(String(fr.result), { kind: 'upload', name: f.name })) toast('Loaded ' + f.name); };
+  fr.readAsText(f);
+}
+function applyTheme(mode) {
+  if (mode) document.documentElement.dataset.theme = mode;
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  $('#themeBtn').innerHTML = dark
+    ? '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="4" fill="currentColor"/><path d="M10 1.5v2.2M10 16.3v2.2M1.5 10h2.2M16.3 10h2.2M4 4l1.5 1.5M14.5 14.5L16 16M4 16l1.5-1.5M14.5 5.5L16 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>'
+    : '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7z" fill="currentColor"/></svg>';
+  return dark;
+}
+function wire() {
+  $$('.tabs button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view, true)));
+  $$('#subnav button').forEach(b => b.addEventListener('click', () => setPage(b.dataset.page)));
+  $('#dataBtn').addEventListener('click', () => { const p = $('#dataPanel'); p.hidden = !p.hidden; $('#dataBtn').setAttribute('aria-expanded', String(!p.hidden)); });
+  $('#uploadBtn').addEventListener('click', () => $('#fileIn').click());
+  $('#fileIn').addEventListener('change', e => readFile(e.target.files[0]));
+  $('#dedupe').addEventListener('change', e => { S.dedupe = e.target.checked; if (S.rawText) ingest(S.rawText, { kind: S.source, name: S.info.name }, true); });
+  $('#copyCsv').addEventListener('click', () => copyText(csvText(), `Copied ${S.rows.length} records as CSV`));
+  $('#addRec').addEventListener('click', () => {
+    const r = { age: P.age, sex: P.sex, f: [...P.f], y: +$('#addOutcome').value };
+    r.band = bandOf(r.age); r.bur = r.f.slice(NL).reduce((a, b) => a + b, 0);
+    S.rows.push(r); S.added++;
+    afterData();
+    toast('Record added. Charts and models are updating.');
+  });
+  $('#themeBtn').addEventListener('click', () => { const dark = applyTheme(); const next = dark ? 'light' : 'dark'; applyTheme(next); store.set('lrl-theme', next); });
+  $('#view-analytics').addEventListener('click', e => {
+    const c = e.target.closest('[data-clear]'); if (c) return clearFilter(c.dataset.clear);
+    const m = e.target.closest('[data-f]'); if (m) toggleFilter(m.dataset.f);
+  });
+  $('#slSex').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; F.sex = b.dataset.v === '' ? null : +b.dataset.v; renderAnalytics(); });
+  $('#slSmoke').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; b.dataset.v === '' ? F.flags.delete('SMOKING') : F.flags.set('SMOKING', +b.dataset.v); renderAnalytics(); });
+  let tipTimer;
+  document.addEventListener('pointermove', e => {
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    if (t) showTip(e, t.dataset.tip); else $('#tip').hidden = true;
+  });
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return;
+    const t = e.target.closest && e.target.closest('[data-tip]');
+    clearTimeout(tipTimer);
+    if (t) { showTip(e, t.dataset.tip); tipTimer = setTimeout(() => { $('#tip').hidden = true; }, 2500); } else $('#tip').hidden = true;
+  });
+  ['dragover', 'dragenter'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); document.body.classList.add('drop-on'); }));
+  ['dragleave', 'drop'].forEach(ev => window.addEventListener(ev, e => { e.preventDefault(); document.body.classList.remove('drop-on'); }));
+  window.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) readFile(f); });
+  window.addEventListener('hashchange', route);
+  window.addEventListener('resize', moveInd);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveInd);
+  window.addEventListener('load', () => { moveInd(); setTimeout(moveInd, 400); });
+}
+function route() {
+  const h = location.hash.replace('#', '');
+  if (h === 'patterns' || h === 'correlations') { setView('analytics'); setPage(h === 'patterns' ? 'patterns' : 'corr'); }
+  else setView(h === 'analytics' ? 'analytics' : 'check');
+}
+
+/* ---------- init ---------- */
+(() => {
+  const saved = store.get('lrl-theme'); if (saved === 'dark' || saved === 'light') applyTheme(saved); else applyTheme();
+})();
+buildForm(); buildKPIs();
+mount('chOutcome', chartOutcome); mount('chHist', chartHist); mount('chAge', chartAge); mount('chSex', chartSex);
+mount('chFactor', chartFactor); mount('chBurden', chartBurden); mount('chPrev', chartPrev);
+mount('chHeat', chartHeat); mount('chCorr', chartCorr); mount('chSmall', chartSmall);
+charts.forEach(c => ro.observe(c.el));
+$('#lgFactor').innerHTML = '<span><i style="background:var(--pos)"></i>Factor present</span><span><i style="background:var(--surface);border:2.5px solid var(--neg)"></i>Factor absent</span>';
+$('#lgSmall').innerHTML = '<span><i style="background:var(--pos)"></i>People with lung cancer</span><span><i style="background:var(--neg)"></i>People without</span>';
+wire();
+route();
+boot();
+})();
+
+</script>
+</body>
+</html>
